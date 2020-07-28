@@ -1,12 +1,12 @@
 # dataset settings
 dataset_type = 'WIDERFaceDataset'
-data_root = 'data/WIDERFace/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(type='MinIoFCrop', min_iou=0.4, crop_size=(1024, 1024)),
+    dict(type='RandomFlip', flip_ratio=0.0),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32, pad_val=0),
     dict(type='DefaultFormatBundle'),
@@ -16,8 +16,10 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
+        img_scale=(5541, 1024),
         flip=False,
         transforms=[
+            dict(type='Resize', keep_ratio=True, keep_height=True),
             dict(type='RandomFlip', flip_ratio=0.0),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32, pad_val=0),
@@ -33,21 +35,24 @@ data = dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
-            type=dataset_type,
-            ann_file='data/quar_train.txt',
-            img_prefix=data_root + 'WIDER_train/',
+            type='WIDERFaceDataset',
+            ann_file='data/aa.txt',
+            img_prefix='data/WIDERFace/WIDER_train/',
             min_size=9,
             pipeline=train_pipeline)),
     val=dict(
-        type=dataset_type,
-        ann_file=data_root + 'val.txt',
-        img_prefix=data_root + 'WIDER_val/',
+        type='WIDERFaceDataset',
+        ann_file='data/WIDERFace/WIDER_val/val.txt',
+        img_prefix='data/WIDERFace/WIDER_val/',
+        min_size=9,
         pipeline=test_pipeline),
     test=dict(
-        type=dataset_type,
-        ann_file=data_root + 'val.txt',
-        img_prefix=data_root + 'WIDER_val/',
-        pipeline=test_pipeline))
+        type='WIDERFaceDataset',
+        ann_file='data/WIDERFace/WIDER_val/val.txt',
+        img_prefix='data/WIDERFace/WIDER_val/',
+        min_size=9,
+        pipeline=test_pipeline)
+)
 
 
 # model settings

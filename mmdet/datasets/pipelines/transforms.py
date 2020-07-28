@@ -55,7 +55,8 @@ class Resize(object):
                  img_scale=None,
                  multiscale_mode='range',
                  ratio_range=None,
-                 keep_ratio=True):
+                 keep_ratio=True,
+                 keep_height=False):
         if img_scale is None:
             self.img_scale = None
         else:
@@ -75,6 +76,7 @@ class Resize(object):
         self.multiscale_mode = multiscale_mode
         self.ratio_range = ratio_range
         self.keep_ratio = keep_ratio
+        self.keep_height = keep_height
 
     @staticmethod
     def random_select(img_scales):
@@ -184,6 +186,10 @@ class Resize(object):
     def _resize_img(self, results):
         """Resize images with ``results['scale']``."""
         for key in results.get('img_fields', ['img']):
+            if self.keep_height:
+                if results['scale'][0] >= results[key].shape[0]:
+                    results['scale'] = (results[key].shape[0], results[key].shape[1])
+
             if self.keep_ratio:
                 img, scale_factor = mmcv.imrescale(
                     results[key], results['scale'], return_scale=True)
@@ -950,7 +956,7 @@ class MinIoFCrop(object):
 
     def __init__(self, min_iou=0.4, crop_size=(1024, 1024)):
         # 1: return ori img
-        self.min_ious = min_iou
+        self.min_iou = min_iou
         self.ch, self.cw = crop_size
         self.bbox2label = {
             'gt_bboxes': 'gt_labels',
@@ -997,8 +1003,8 @@ class MinIoFCrop(object):
 
                 overlaps = bbox_overlaps(
                     boxes.reshape(-1, 4), patch.reshape(-1, 4), mode='iof').reshape(-1)
-                if len(overlaps) > 0 and overlaps.min() < self.min_iou:
-                    continue
+                # if len(overlaps) > 0 and overlaps.min() < self.min_iou:
+                #     continue
 
                 # center of boxes should inside the crop img
                 # only adjust boxes and instance masks when the gt is not empty
@@ -1047,7 +1053,7 @@ class MinIoFCrop(object):
 
     def __repr__(self):
         repr_str = self.__class__.__name__
-        repr_str += f'(min_ious={self.min_ious}, '
+        repr_str += f'(min_ious={self.min_iou}, '
         repr_str += f'crop_size={self.crop_size})'
         return repr_str
 
