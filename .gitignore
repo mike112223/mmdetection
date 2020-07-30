@@ -121,3 +121,9 @@ work_dirs/
 *.sh~
 
 outputs/*
+
+nohup*
+
+*.png
+
+*.pdf

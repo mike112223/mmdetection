@@ -937,7 +937,7 @@ class MinIoURandomCrop(object):
 
 
 @PIPELINES.register_module()
-class MinIoFCrop(object):
+class RandomSquareCrop(object):
     """Random crop the image & bboxes, the cropped patches have minimum IoU
     requirement with original image & bboxes, the IoU threshold is randomly
     selected from min_ious.
@@ -954,10 +954,10 @@ class MinIoFCrop(object):
         `gt_bboxes_ignore` to `gt_labels_ignore` and `gt_masks_ignore`.
     """
 
-    def __init__(self, min_iou=0.4, crop_size=(1024, 1024)):
-        # 1: return ori img
-        self.min_iou = min_iou
-        self.ch, self.cw = crop_size
+    def __init__(self, crop_ratio=(0.3, 1)):
+
+        assert isinstance(crop_ratio, tuple) and len(crop_ratio) == 2
+        self.crop_ratio_min, self.crop_ratio_max = crop_ratio
         self.bbox2label = {
             'gt_bboxes': 'gt_labels',
             'gt_bboxes_ignore': 'gt_labels_ignore'
@@ -988,58 +988,55 @@ class MinIoFCrop(object):
         boxes = np.concatenate(boxes, 0)
         h, w, c = img.shape
 
-        if h <= self.ch and w <= self.cw:
-            return results
-
         while True:
 
-            for i in range(50):
+            for i in range(250):
 
-                left = random.uniform(w - self.cw)
-                top = random.uniform(h - self.ch)
+                scale = np.random.uniform(self.crop_ratio_min, self.crop_ratio_max)
+                short_side = min(w, h)
+                cw = int(scale * short_side)
+                ch = cw
+
+                left = random.uniform(w - cw)
+                top = random.uniform(h - ch)
 
                 patch = np.array(
-                    (int(left), int(top), int(left + self.cw), int(top + self.ch)))
-
-                overlaps = bbox_overlaps(
-                    boxes.reshape(-1, 4), patch.reshape(-1, 4), mode='iof').reshape(-1)
-                # if len(overlaps) > 0 and overlaps.min() < self.min_iou:
-                #     continue
+                    (int(left), int(top), int(left + cw), int(top + ch)))
 
                 # center of boxes should inside the crop img
                 # only adjust boxes and instance masks when the gt is not empty
-                if len(overlaps) > 0:
-                    # adjust boxes
-                    def is_center_of_bboxes_in_patch(boxes, patch):
-                        center = (boxes[:, :2] + boxes[:, 2:]) / 2
-                        mask = ((center[:, 0] > patch[0]) *
-                                (center[:, 1] > patch[1]) *
-                                (center[:, 0] < patch[2]) *
-                                (center[:, 1] < patch[3]))
-                        return mask
+                # adjust boxes
+                def is_center_of_bboxes_in_patch(boxes, patch):
+                    center = (boxes[:, :2] + boxes[:, 2:]) / 2
+                    mask = ((center[:, 0] > patch[0]) *
+                            (center[:, 1] > patch[1]) *
+                            (center[:, 0] < patch[2]) *
+                            (center[:, 1] < patch[3]))
+                    return mask
 
+                mask = is_center_of_bboxes_in_patch(boxes, patch)
+                if not mask.any():
+                    continue
+                for key in results.get('bbox_fields', []):
+                    boxes = results[key].copy()
                     mask = is_center_of_bboxes_in_patch(boxes, patch)
-                    if not mask.any():
-                        continue
-                    for key in results.get('bbox_fields', []):
-                        boxes = results[key].copy()
-                        mask = is_center_of_bboxes_in_patch(boxes, patch)
-                        boxes = boxes[mask]
-                        boxes[:, 2:] = boxes[:, 2:].clip(max=patch[2:])
-                        boxes[:, :2] = boxes[:, :2].clip(min=patch[:2])
-                        boxes -= np.tile(patch[:2], 2)
+                    boxes = boxes[mask]
+                    boxes[:, 2:] = boxes[:, 2:].clip(max=patch[2:])
+                    boxes[:, :2] = boxes[:, :2].clip(min=patch[:2])
+                    boxes -= np.tile(patch[:2], 2)
 
-                        results[key] = boxes
-                        # labels
-                        label_key = self.bbox2label.get(key)
-                        if label_key in results:
-                            results[label_key] = results[label_key][mask]
+                    results[key] = boxes
+                    # labels
+                    label_key = self.bbox2label.get(key)
+                    if label_key in results:
+                        results[label_key] = results[label_key][mask]
 
-                        # mask fields
-                        mask_key = self.bbox2mask.get(key)
-                        if mask_key in results:
-                            results[mask_key] = results[mask_key][
-                                mask.nonzero()[0]].crop(patch)
+                    # mask fields
+                    mask_key = self.bbox2mask.get(key)
+                    if mask_key in results:
+                        results[mask_key] = results[mask_key][
+                            mask.nonzero()[0]].crop(patch)
+
                 # adjust the img no matter whether the gt is empty before crop
                 img = img[patch[1]:patch[3], patch[0]:patch[2]]
                 results['img'] = img
