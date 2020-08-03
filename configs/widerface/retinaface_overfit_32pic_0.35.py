@@ -22,10 +22,10 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2150, 1600),
+        img_scale=(3008, 1024),
         flip=False,
         transforms=[
-            dict(type='Resize', keep_ratio=True),
+            dict(type='Resize', keep_ratio=True, keep_height=True),
             dict(type='RandomFlip', flip_ratio=0.0),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32, pad_val=0),
@@ -35,24 +35,24 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=8,
+    samples_per_gpu=16,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/overfit_128pic.txt',
+            ann_file='data/overfit_32pic.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
-        ann_file='data/overfit_128pic.txt',
+        ann_file='data/overfit_32pic.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/overfit_128pic.txt',
+        ann_file='data/overfit_32pic.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         min_size=9,
         pipeline=test_pipeline)
@@ -106,9 +106,9 @@ model = dict(
 train_cfg = dict(
     assigner=dict(
         type='MaxIoUAssigner',
-        pos_iou_thr=0.5,
-        neg_iou_thr=0.3,
-        min_pos_iou=0,
+        pos_iou_thr=0.35,
+        neg_iou_thr=0.35,
+        min_pos_iou=0.35,
         ignore_iof_thr=-1),
     allowed_border=-1,
     pos_weight=-1,
@@ -122,7 +122,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()
 # learning policy
 lr_config = dict(

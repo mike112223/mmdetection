@@ -6,12 +6,12 @@ train_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(type='RandomSquareCrop', crop_choice=[0.3, 0.45, 0.6, 0.8, 1.0]),
-    # dict(
-    #     type='PhotoMetricDistortion',
-    #     brightness_delta=32,
-    #     contrast_range=(0.5, 1.5),
-    #     saturation_range=(0.5, 1.5),
-    #     hue_delta=18),
+    dict(
+        type='PhotoMetricDistortion',
+        brightness_delta=32,
+        contrast_range=(0.5, 1.5),
+        saturation_range=(0.5, 1.5),
+        hue_delta=18),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
@@ -22,10 +22,10 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2150, 1600),
+        img_scale=(3008, 1024),
         flip=False,
         transforms=[
-            dict(type='Resize', keep_ratio=True),
+            dict(type='Resize', keep_ratio=True, keep_height=True),
             dict(type='RandomFlip', flip_ratio=0.0),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32, pad_val=0),
@@ -35,24 +35,24 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=8,
+    samples_per_gpu=16,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/overfit_128pic.txt',
+            ann_file='data/overfit_32pic.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
-        ann_file='data/overfit_128pic.txt',
+        ann_file='data/overfit_32pic.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/overfit_128pic.txt',
+        ann_file='data/overfit_32pic.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         min_size=9,
         pipeline=test_pipeline)
@@ -122,7 +122,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()
 # learning policy
 lr_config = dict(

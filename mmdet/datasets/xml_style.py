@@ -113,7 +113,7 @@ class XMLDataset(CustomDataset):
                 # assert not self.test_mode
                 w = bbox[2] - bbox[0]
                 h = bbox[3] - bbox[1]
-                if h < self.min_size:
+                if h < self.min_size or w < self.min_size:
                     ignore = True
             if difficult or ignore:
                 bboxes_ignore.append(bbox)

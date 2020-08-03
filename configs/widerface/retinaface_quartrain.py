@@ -5,13 +5,13 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='RandomSquareCrop', crop_ratio=(0.3, 1.)),
-    dict(
-        type='PhotoMetricDistortion',
-        brightness_delta=32,
-        contrast_range=(0.5, 1.5),
-        saturation_range=(0.5, 1.5),
-        hue_delta=18),
+    dict(type='RandomSquareCrop', crop_choice=[0.3, 0.45, 0.6, 0.8, 1.0]),
+    # dict(
+    #     type='PhotoMetricDistortion',
+    #     brightness_delta=32,
+    #     contrast_range=(0.5, 1.5),
+    #     saturation_range=(0.5, 1.5),
+    #     hue_delta=18),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
@@ -22,10 +22,10 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2150, 1600),
+        img_scale=(3008, 1024),
         flip=False,
         transforms=[
-            dict(type='Resize', keep_ratio=True),
+            dict(type='Resize', keep_ratio=True, keep_height=True),
             dict(type='RandomFlip', flip_ratio=0.0),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32, pad_val=0),
@@ -44,6 +44,7 @@ data = dict(
             type='WIDERFaceDataset',
             ann_file='data/quar_train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
+            min_size=1,
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
@@ -52,8 +53,9 @@ data = dict(
         pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/WIDERFace/WIDER_val/val.txt',
-        img_prefix='data/WIDERFace/WIDER_val/',
+        ann_file='data/quar_train.txt',
+        img_prefix='data/WIDERFace/WIDER_train/',
+        min_size=9,
         pipeline=test_pipeline)
 )
 
@@ -122,14 +124,14 @@ test_cfg = dict(
 
 # optimizer
 optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
-optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+optimizer_config = dict()
 # learning policy
 lr_config = dict(
     policy='CosineAnnealing',
     warmup='linear',
     warmup_iters=2000,
-    warmup_ratio=0.001,
-    min_lr_ratio=1e-3)
+    warmup_ratio=1e-1,
+    min_lr_ratio=1e-2)
 # runtime settings
 total_epochs = 130
 log_config = dict(interval=1)
@@ -138,7 +140,7 @@ log_config = dict(interval=1)
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=50,
+    interval=1,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')

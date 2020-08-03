@@ -26,6 +26,7 @@ def main():
     keep = int(args.ratio * len(lines))
 
     idx = np.random.permutation(range(len(lines)))[:keep]
+    print(idx)
 
     with open(args.output, 'w') as f:
         for i in idx:

@@ -22,10 +22,10 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2150, 1600),
+        img_scale=(3008, 1024),
         flip=False,
         transforms=[
-            dict(type='Resize', keep_ratio=True),
+            dict(type='Resize', keep_ratio=True, keep_height=True),
             dict(type='RandomFlip', flip_ratio=0.0),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32, pad_val=0),
@@ -42,17 +42,17 @@ data = dict(
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/overfit_128pic.txt',
+            ann_file='data/overfit_32pic.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
-        ann_file='data/overfit_128pic.txt',
+        ann_file='data/overfit_32pic.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/overfit_128pic.txt',
+        ann_file='data/overfit_32pic.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         min_size=9,
         pipeline=test_pipeline)
@@ -122,7 +122,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()
 # learning policy
 lr_config = dict(

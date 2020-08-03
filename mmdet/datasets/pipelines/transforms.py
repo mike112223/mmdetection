@@ -954,10 +954,15 @@ class RandomSquareCrop(object):
         `gt_bboxes_ignore` to `gt_labels_ignore` and `gt_masks_ignore`.
     """
 
-    def __init__(self, crop_ratio=(0.3, 1)):
+    def __init__(self, crop_ratio=None, crop_choice=None):
 
-        assert isinstance(crop_ratio, tuple) and len(crop_ratio) == 2
-        self.crop_ratio_min, self.crop_ratio_max = crop_ratio
+        self.crop_ratio = crop_ratio
+        self.crop_choice = crop_choice
+
+        assert (self.crop_ratio is None) ^ (self.crop_choice is None)
+        if self.crop_ratio is not None:
+            self.crop_ratio_min, self.crop_ratio_max = self.crop_ratio
+
         self.bbox2label = {
             'gt_bboxes': 'gt_labels',
             'gt_bboxes_ignore': 'gt_labels_ignore'
@@ -992,7 +997,11 @@ class RandomSquareCrop(object):
 
             for i in range(250):
 
-                scale = np.random.uniform(self.crop_ratio_min, self.crop_ratio_max)
+                if self.crop_ratio is not None:
+                    scale = np.random.uniform(self.crop_ratio_min, self.crop_ratio_max)
+                elif self.crop_choice is not None:
+                    scale = np.random.choice(self.crop_choice)
+
                 short_side = min(w, h)
                 cw = int(scale * short_side)
                 ch = cw

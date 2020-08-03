@@ -182,29 +182,36 @@ class CustomDataset(Dataset):
         """
 
         if self.test_mode:
-            return self.prepare_test_img(idx)
+            data = self.prepare_test_img(idx)
+            # print(data['img'][0].shape)
+            return data
+
         while True:
             data = self.prepare_train_img(idx)
             if data is None:
                 idx = self._rand_another(idx)
                 continue
-            #import cv2
-            #img = data['img'].data
-            #bbox = data['gt_bboxes'].data.numpy()
-            #mean = (123.675, 116.280, 103.530)
-            #std = (1., 1., 1.)
-            #mean = np.reshape(np.array(mean, dtype=np.float32), [1, 1, 3])
-            #std = np.reshape(np.array(std, dtype=np.float32), [1, 1, 3])
-            #denominator = np.reciprocal(std, dtype=np.float32)
-            #ximg = (img.numpy().transpose(1, 2, 0)/ denominator + mean).astype(np.uint8)
-            #cv2.imwrite('img_%d.png'%(idx), ximg)
-            #iimg = cv2.imread('img_%d.png'%(idx))
-            #for i in range(len(bbox)):
-            #    print(i)
-            #    x1, y1, x2, y2 = bbox[i]
-            #    print(x1,y1,x2,y2)
-            #    cv2.rectangle(iimg, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
-            #cv2.imwrite('iimg_%d.png'%(idx), iimg)
+            # print(data['img_metas'].data['filename'])
+            # import cv2
+            # img = data['img'].data
+            # bbox = data['gt_bboxes'].data.numpy()
+            # mean = (123.675, 116.280, 103.530)
+            # std = (1., 1., 1.)
+            # mean = np.reshape(np.array(mean, dtype=np.float32), [1, 1, 3])
+            # std = np.reshape(np.array(std, dtype=np.float32), [1, 1, 3])
+            # denominator = np.reciprocal(std, dtype=np.float32)
+            # ximg = (img.numpy().transpose(1, 2, 0) / denominator + mean).astype(np.uint8)
+            # ximg = ximg[:, :, (2, 1, 0)]
+
+            # cv2.imwrite('img_%d.png' % (idx), ximg)
+            # iimg = cv2.imread('img_%d.png' % idx)
+
+            # for i in range(len(bbox)):
+            #     x1, y1, x2, y2 = bbox[i]
+            #     cv2.rectangle(iimg, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+
+            # cv2.imwrite('iimg_%d.png' % (idx), iimg)
+
             return data
 
     def prepare_train_img(self, idx):
