@@ -104,6 +104,9 @@ class MaxIoUAssigner(BaseAssigner):
 
         overlaps = self.iou_calculator(gt_bboxes, bboxes)
 
+        # print('='*100)
+        # print(gt_bboxes_ignore, self.ignore_iof_thr)
+
         if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and bboxes.numel() > 0):
             if self.ignore_wrt_candidates:
@@ -114,6 +117,7 @@ class MaxIoUAssigner(BaseAssigner):
                 ignore_overlaps = self.iou_calculator(
                     gt_bboxes_ignore, bboxes, mode='iof')
                 ignore_max_overlaps, _ = ignore_overlaps.max(dim=0)
+            # print((ignore_max_overlaps > self.ignore_iof_thr).sum())
             overlaps[:, ignore_max_overlaps > self.ignore_iof_thr] = -1
 
         assign_result = self.assign_wrt_overlaps(overlaps, gt_labels)

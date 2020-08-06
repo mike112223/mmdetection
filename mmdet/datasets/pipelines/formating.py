@@ -171,6 +171,45 @@ class ToDataContainer(object):
 
 
 @PIPELINES.register_module()
+class IgnoreAfterAug(object):
+
+    def __init__(self, min_size):
+        self.min_size = min_size
+
+    def __call__(self, results):
+        """Call function to transform and format common fields in results.
+
+        Args:
+            results (dict): Result dict contains the data to convert.
+
+        Returns:
+            dict: The result dict contains the data that is formatted with \
+                default bundle.
+        """
+        # print('='*100)
+
+        gt_bboxes = results['gt_bboxes']
+        ignore_bboxes = results['gt_bboxes_ignore']
+        hs = gt_bboxes[:, 3] - gt_bboxes[:, 1]
+        ws = gt_bboxes[:, 2] - gt_bboxes[:, 0]
+
+        keep = np.logical_and(hs >= self.min_size, ws >= self.min_size)
+        ignore = np.logical_or(hs < self.min_size, ws < self.min_size)
+
+        if np.sum(keep) < len(gt_bboxes):
+            # print(keep, ignore, len(gt_bboxes), len(ignore_bboxes))
+            results['gt_bboxes'] = gt_bboxes[keep]
+            results['gt_labels'] = results['gt_labels'][keep]
+            results['gt_bboxes_ignore'] = np.concatenate((ignore_bboxes, gt_bboxes[ignore]))
+            # print(len(results['gt_bboxes']), len(results['gt_labels']), len(results['gt_bboxes_ignore']))
+
+        return results
+
+    def __repr__(self):
+        return self.__class__.__name__
+
+
+@PIPELINES.register_module()
 class DefaultFormatBundle(object):
     """Default formatting bundle.
 

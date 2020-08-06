@@ -191,7 +191,7 @@ class CustomDataset(Dataset):
             if data is None:
                 idx = self._rand_another(idx)
                 continue
-            # print(data['img_metas'].data['filename'])
+
             # import cv2
             # img = data['img'].data
             # bbox = data['gt_bboxes'].data.numpy()
@@ -327,6 +327,7 @@ class CustomDataset(Dataset):
                 logger=logger)
             eval_results['mAP'] = mean_ap
         elif metric == 'recall':
+            # results : len:pics, results[0][0] shape (n,5)
             gt_bboxes = [ann['bboxes'] for ann in annotations]
             if isinstance(iou_thr, float):
                 iou_thr = [iou_thr]

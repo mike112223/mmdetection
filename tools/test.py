@@ -143,10 +143,20 @@ def main():
             print(f'\nwriting results to {args.out}')
             mmcv.dump(outputs, args.out)
         kwargs = {} if args.options is None else args.options
+        if 'scale_ranges' in kwargs:
+            tmp = kwargs['scale_ranges']
+            kwargs['scale_ranges'] = [(tmp[i], tmp[i + 1]) for i in range(len(tmp)-1)]
+            kwargs['scale_ranges'].append((tmp[0], tmp[-1]))
+
+        print(kwargs)
+
         if args.format_only:
             dataset.format_results(outputs, **kwargs)
         if args.eval:
-            dataset.evaluate(outputs, args.eval, **kwargs)
+            # dataset.evaluate(outputs, args.eval, **kwargs)
+
+            dataset.evaluate(outputs, 'mAP', scale_ranges=[(0, 8), (8, 16), (16, 24), (24, 32), (32, 96), (96, 5000), (0, 5000)])
+            dataset.evaluate(outputs, 'mAP', scale_ranges=[(8, 10), (10, 12), (12, 14), (14, 16), (8, 16)])
 
 
 if __name__ == '__main__':

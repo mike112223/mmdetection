@@ -16,7 +16,7 @@ train_pipeline = [
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_bboxes_ignore']),
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -44,7 +44,7 @@ data = dict(
             type='WIDERFaceDataset',
             ann_file='data/quar_train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
-            min_size=1,
+            min_size=9,
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
@@ -117,7 +117,7 @@ train_cfg = dict(
         pos_iou_thr=0.5,
         neg_iou_thr=0.3,
         min_pos_iou=0,
-        ignore_iof_thr=-1),
+        ignore_iof_thr=0.5),
     allowed_border=-1,
     pos_weight=-1,
     debug=False)
