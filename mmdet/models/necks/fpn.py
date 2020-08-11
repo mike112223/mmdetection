@@ -85,6 +85,7 @@ class FPN(nn.Module):
         self.no_norm_on_lateral = no_norm_on_lateral
         self.fp16_enabled = False
         self.upsample_cfg = upsample_cfg.copy()
+        self.extra_convs_on_inputs = extra_convs_on_inputs
 
         if end_level == -1:
             self.backbone_end_level = self.num_ins

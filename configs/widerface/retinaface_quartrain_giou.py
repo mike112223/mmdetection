@@ -52,18 +52,18 @@ data = dict(
         img_prefix='data/WIDERFace/WIDER_val/',
         min_size=1,
         pipeline=test_pipeline),
-    # test=dict(
-    #     type='WIDERFaceDataset',
-    #     ann_file='data/quar_train.txt',
-    #     img_prefix='data/WIDERFace/WIDER_train/',
-    #     min_size=9,
-    #     pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/WIDERFace/WIDER_val/val.txt',
-        img_prefix='data/WIDERFace/WIDER_val/',
+        ann_file='data/quar_train.txt',
+        img_prefix='data/WIDERFace/WIDER_train/',
         min_size=1,
-        pipeline=test_pipeline)
+        pipeline=test_pipeline),
+    # test=dict(
+    #     type='WIDERFaceDataset',
+    #     ann_file='data/WIDERFace/WIDER_val/val.txt',
+    #     img_prefix='data/WIDERFace/WIDER_val/',
+    #     min_size=1,
+    #     pipeline=test_pipeline)
 )
 
 

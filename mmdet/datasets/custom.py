@@ -227,6 +227,9 @@ class CustomDataset(Dataset):
 
         img_info = self.data_infos[idx]
         ann_info = self.get_ann_info(idx)
+        if len(ann_info['bboxes']) == 0:
+            return None
+
         results = dict(img_info=img_info, ann_info=ann_info)
         if self.proposals is not None:
             results['proposals'] = self.proposals[idx]

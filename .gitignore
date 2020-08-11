@@ -127,3 +127,7 @@ nohup*
 *.png
 
 *.pdf
+
+*.nfs*
+
+*.swp

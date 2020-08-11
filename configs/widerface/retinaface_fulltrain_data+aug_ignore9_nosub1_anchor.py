@@ -15,8 +15,9 @@ train_pipeline = [
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
+    dict(type='IgnoreAfterAug', min_size=9),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_bboxes_ignore']),
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -35,35 +36,38 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=8,
+    samples_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/quar_train.txt',
+            ann_file='data/WIDERFace/WIDER_train/train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
-            min_size=1,
+            min_size=9,
+            offset=0,
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
         ann_file='data/WIDERFace/WIDER_val/val.txt',
         img_prefix='data/WIDERFace/WIDER_val/',
         min_size=1,
-        pipeline=test_pipeline),
-    test=dict(
-        type='WIDERFaceDataset',
-        ann_file='data/quar_train.txt',
-        img_prefix='data/WIDERFace/WIDER_train/',
-        min_size=1,
+        offset=0,
         pipeline=test_pipeline),
     # test=dict(
     #     type='WIDERFaceDataset',
-    #     ann_file='data/WIDERFace/WIDER_val/val.txt',
-    #     img_prefix='data/WIDERFace/WIDER_val/',
-    #     min_size=1,
-    #     pipeline=test_pipeline)
+    #     ann_file='data/quar_train.txt',
+    #     img_prefix='data/WIDERFace/WIDER_train/',
+    #     min_size=9,
+    #     pipeline=test_pipeline),
+    test=dict(
+        type='WIDERFaceDataset',
+        ann_file='data/WIDERFace/WIDER_val/val.txt',
+        img_prefix='data/WIDERFace/WIDER_val/',
+        min_size=1,
+        offset=0,
+        pipeline=test_pipeline)
 )
 
 
@@ -86,7 +90,7 @@ model = dict(
         out_channels=256,
         start_level=0,
         add_extra_convs='on_input',
-        num_outs=5),
+        num_outs=6),
     bbox_head=dict(
         type='RetinaHead',
         num_classes=1,
@@ -95,10 +99,10 @@ model = dict(
         feat_channels=256,
         anchor_generator=dict(
             type='AnchorGenerator',
-            octave_base_scale=4,
+            octave_base_scale=2**(4 / 3),
             scales_per_octave=3,
-            ratios=[1.0],
-            strides=[4, 8, 16, 32, 64]),
+            ratios=[1.3],
+            strides=[4, 8, 16, 32, 64, 128]),
         bbox_coder=dict(
             type='DeltaXYWHBBoxCoder',
             target_means=[.0, .0, .0, .0],
@@ -109,8 +113,7 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        reg_decoded_bbox=True,
-        loss_bbox=dict(type='BoundedIoULoss', eps=1e-5, loss_weight=1.0)))
+        loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -118,7 +121,7 @@ train_cfg = dict(
         pos_iou_thr=0.5,
         neg_iou_thr=0.3,
         min_pos_iou=0,
-        ignore_iof_thr=-1),
+        ignore_iof_thr=0.5),
     allowed_border=-1,
     pos_weight=-1,
     debug=False)
@@ -131,7 +134,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.0015, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()
 # learning policy
 lr_config = dict(

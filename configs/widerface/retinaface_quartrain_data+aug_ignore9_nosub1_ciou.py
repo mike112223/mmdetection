@@ -15,8 +15,9 @@ train_pipeline = [
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
+    dict(type='IgnoreAfterAug', min_size=9),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_bboxes_ignore']),
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -44,25 +45,29 @@ data = dict(
             type='WIDERFaceDataset',
             ann_file='data/quar_train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
-            min_size=1,
+            min_size=9,
+            offset=0,
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
         ann_file='data/WIDERFace/WIDER_val/val.txt',
         img_prefix='data/WIDERFace/WIDER_val/',
         min_size=1,
+        offset=0,
         pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
         ann_file='data/quar_train.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
         min_size=1,
+        offset=0,
         pipeline=test_pipeline),
     # test=dict(
     #     type='WIDERFaceDataset',
     #     ann_file='data/WIDERFace/WIDER_val/val.txt',
     #     img_prefix='data/WIDERFace/WIDER_val/',
     #     min_size=1,
+    #     offset=0,
     #     pipeline=test_pipeline)
 )
 
@@ -110,7 +115,7 @@ model = dict(
             alpha=0.25,
             loss_weight=1.0),
         reg_decoded_bbox=True,
-        loss_bbox=dict(type='BoundedIoULoss', eps=1e-5, loss_weight=1.0)))
+        loss_bbox=dict(type='CIoULoss', loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -118,7 +123,7 @@ train_cfg = dict(
         pos_iou_thr=0.5,
         neg_iou_thr=0.3,
         min_pos_iou=0,
-        ignore_iof_thr=-1),
+        ignore_iof_thr=0.5),
     allowed_border=-1,
     pos_weight=-1,
     debug=False)

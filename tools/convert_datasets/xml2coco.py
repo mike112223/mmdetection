@@ -1,4 +1,7 @@
 
+import json
+from mmdet.datasets import build_dataset
+
 ####
 # dataset settings
 dataset_type = 'WIDERFaceDataset'
@@ -54,74 +57,79 @@ data = dict(
         img_prefix='data/WIDERFace/WIDER_val/',
         min_size=1,
         pipeline=test_pipeline),
-    # test=dict(
-    #     type='WIDERFaceDataset',
-    #     ann_file='data/quar_train.txt',
-    #     img_prefix='data/WIDERFace/WIDER_train/',
-    #     min_size=9,
-    #     pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/WIDERFace/WIDER_val/val.txt',
-        img_prefix='data/WIDERFace/WIDER_val/',
+        ann_file='data/quar_train.txt',
+        img_prefix='data/WIDERFace/WIDER_train/',
         min_size=1,
-        pipeline=test_pipeline)
+        pipeline=test_pipeline),
+    # test=dict(
+    #     type='WIDERFaceDataset',
+    #     ann_file='data/WIDERFace/WIDER_val/val.txt',
+    #     img_prefix='data/WIDERFace/WIDER_val/',
+    #     min_size=1,
+    #     pipeline=test_pipeline)
 )
-
-from mmdet.datasets import build_dataset
 
 dataset = build_dataset(data['test'])
 
-data1 = {}
+data = []
 for i in range(len(dataset)):
+    _data = {}
     t = dataset.get_ann_info(i)
-    n = dataset.data_infos[i]['id']
-    data1[n] = t
+    n = dataset.data_infos[i]
+    _data['img_info'] = n
+    _data['ann_info'] = t
+    data.append(_data)
 
-####
-import os
-import numpy as np
-import xml.etree.ElementTree as ET
-from scipy.io import loadmat
+json_data = {'images': [], 'annotations': []}
 
-def get_gt_boxes(gt_dir):
-    """ gt dir: (wider_face_val.mat, wider_easy_val.mat, wider_medium_val.mat, wider_hard_val.mat)"""
+json_data['licenses'] = [{'id': 1, 'name': '', 'url': ''}]
+json_data['categories'] = [{'id': 1, 'name': 'face', 'supercategory': 'human body part'}]
+json_data['inf0'] = {'year': 2016,
+                     'version': 'v1.0',
+                     'description': 'WIDER FACE: A Face Detection Benchmark',
+                     'contributor': '',
+                     'url': 'http://mmlab.ie.cuhk.edu.hk/projects/WIDERFace/',
+                     'date_created': '2020-07-09T08:14:07.999019'}
 
-    gt_mat = loadmat(os.path.join(gt_dir, 'wider_face_val.mat'))
-    hard_mat = loadmat(os.path.join(gt_dir, 'wider_hard_val.mat'))
-    medium_mat = loadmat(os.path.join(gt_dir, 'wider_medium_val.mat'))
-    easy_mat = loadmat(os.path.join(gt_dir, 'wider_easy_val.mat'))
 
-    facebox_list = gt_mat['face_bbx_list']
-    event_list = gt_mat['event_list']
-    file_list = gt_mat['file_list']
+img_id = 0
+ann_id = 0
+for d in data:
 
-    hard_gt_list = hard_mat['gt_list']
-    medium_gt_list = medium_mat['gt_list']
-    easy_gt_list = easy_mat['gt_list']
+    img_info = d['img_info']
+    ann_info = d['ann_info']
 
-    return facebox_list, event_list, file_list, hard_gt_list, medium_gt_list, easy_gt_list
+    json_data['images'].append({
+        'coco_url': '',
+        'data_captured': '',
+        'file_name': img_info['filename'],
+        'flickr_url': '',
+        'id': img_id,
+        'height': img_info['height'],
+        'width': img_info['width'],
+        'license': 1
+    })
 
-ann_path = 'data/WIDERFace/WIDER_val/Annotations/'
-gt_path = '/DATA/data/public/WiderFace/eval_tools/ground_truth/'
+    img_id += 1
 
-(facebox_list, event_list, file_list, hard_gt_list,
-    medium_gt_list, easy_gt_list) = get_gt_boxes(gt_path)
+    for i in range(len(ann_info['bboxes'])):
 
-data2 = {}
-count_face = 0
-for i in range(len(event_list)):
-    img_list = file_list[i][0]
-    sub_gt_list = hard_gt_list[i][0]
-    # img_pr_info_list = np.zeros((len(img_list), thresh_num, 2))
-    gt_bbx_list = facebox_list[i][0]
+        bbox = ann_info['bboxes'][i].tolist()
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-    for j in range(len(img_list)):
+        json_data['annotations'].append({
+            'id': ann_id,
+            'image_id': img_id,
+            'category_id': 1,
+            'iscrowd': 0,
+            'segmentation': [],
+            'area': w * h,
+            'bbox': bbox,
+        })
 
-        gt_boxes = gt_bbx_list[j][0].astype('float')
+        ann_id += 1
 
-        keep_index = sub_gt_list[j][0]
-        count_face += len(keep_index)
-
-        data2[str(img_list[j][0][0])] = {'keep': keep_index, 'gt': gt_boxes}
-
+with open('widerface_train.json', 'w') as f:
+    json.dump(json_data, f)

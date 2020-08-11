@@ -19,10 +19,11 @@ class XMLDataset(CustomDataset):
             ``min_size``, it would be add to ignored field.
     """
 
-    def __init__(self, min_size=None, **kwargs):
+    def __init__(self, min_size=None, offset=1, **kwargs):
         super(XMLDataset, self).__init__(**kwargs)
         self.cat2label = {cat: i for i, cat in enumerate(self.CLASSES)}
         self.min_size = min_size
+        self.offset = offset
 
     def load_annotations(self, ann_file):
         """Load annotation from XML style ann_file.
@@ -125,13 +126,13 @@ class XMLDataset(CustomDataset):
             bboxes = np.zeros((0, 4))
             labels = np.zeros((0, ))
         else:
-            bboxes = np.array(bboxes, ndmin=2) - 1
+            bboxes = np.array(bboxes, ndmin=2) - self.offset
             labels = np.array(labels)
         if not bboxes_ignore:
             bboxes_ignore = np.zeros((0, 4))
             labels_ignore = np.zeros((0, ))
         else:
-            bboxes_ignore = np.array(bboxes_ignore, ndmin=2) - 1
+            bboxes_ignore = np.array(bboxes_ignore, ndmin=2) - self.offset
             labels_ignore = np.array(labels_ignore)
         ann = dict(
             bboxes=bboxes.astype(np.float32),
