@@ -29,21 +29,21 @@ test_pipeline = [
             dict(type='Resize', keep_ratio=True, keep_height=True),
             dict(type='RandomFlip', flip_ratio=0.0),
             dict(type='Normalize', **img_norm_cfg),
-            dict(type='Pad', size_divisor=128, pad_val=0),
+            dict(type='Pad', size_divisor=32, pad_val=0),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='Collect', keys=['img'])
         ])
 ]
 
 data = dict(
-    samples_per_gpu=4,
+    samples_per_gpu=8,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/WIDERFace/WIDER_train/train.txt',
+            ann_file='data/quar_train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
             min_size=9,
             offset=0,
@@ -121,7 +121,7 @@ train_cfg = dict(
         type='MaxIoUAssigner',
         pos_iou_thr=0.5,
         neg_iou_thr=0.3,
-        min_pos_iou=0,
+        min_pos_iou=0.3,
         ignore_iof_thr=0.5),
     allowed_border=-1,
     pos_weight=-1,
@@ -135,7 +135,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.0015, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()
 # learning policy
 lr_config = dict(

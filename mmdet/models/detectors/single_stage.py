@@ -1,6 +1,7 @@
+import torch
 import torch.nn as nn
 
-from mmdet.core import bbox2result
+from mmdet.core import bbox2result, multiclass_nms
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
 
@@ -117,4 +118,25 @@ class SingleStageDetector(BaseDetector):
 
     def aug_test(self, imgs, img_metas, rescale=False):
         """Test function with test time augmentation."""
-        raise NotImplementedError
+
+        aug_bboxes = []
+        aug_scores = []
+        for img, img_meta in zip(imgs, img_metas):
+            x = self.extract_feat(img)
+            outs = self.bbox_head(x)
+
+            bboxes, scores = self.bbox_head.get_aug_bboxes(
+                *outs, img_meta, rescale=rescale)[0]
+            aug_bboxes.append(bboxes)
+            aug_scores.append(scores)
+        aug_bboxes = torch.cat(aug_bboxes)
+        aug_scores = torch.cat(aug_scores)
+        cfg = self.test_cfg
+        det_bboxes, det_labels = multiclass_nms(aug_bboxes, aug_scores,
+                                                cfg.score_thr, cfg.nms,
+                                                cfg.max_per_img)
+
+        bbox_result = bbox2result(det_bboxes, det_labels,
+                                  self.bbox_head.num_classes)
+
+        return bbox_result

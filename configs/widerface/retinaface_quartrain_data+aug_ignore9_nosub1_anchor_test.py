@@ -36,14 +36,14 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=4,
+    samples_per_gpu=8,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/WIDERFace/WIDER_train/train.txt',
+            ann_file='data/quar_train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
             min_size=9,
             offset=0,
@@ -135,7 +135,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.0015, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()
 # learning policy
 lr_config = dict(
