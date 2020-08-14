@@ -91,7 +91,8 @@ model = dict(
         out_channels=256,
         start_level=0,
         add_extra_convs='on_input',
-        num_outs=6),
+        num_outs=6,
+        upsample_cfg=dict(mode='bilinear', align_corners=True)),
     bbox_head=dict(
         type='RetinaHead',
         num_classes=1,

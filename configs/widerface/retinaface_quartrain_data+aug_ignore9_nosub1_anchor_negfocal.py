@@ -113,6 +113,8 @@ model = dict(
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
+            no_focal_pos=True,
+            bg_id=1,
             loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
 # training and testing settings

@@ -85,13 +85,20 @@ model = dict(
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch'),
-    neck=dict(
-        type='FPN',
-        in_channels=[256, 512, 1024, 2048],
-        out_channels=256,
-        start_level=0,
-        add_extra_convs='on_input',
-        num_outs=6),
+    neck=[
+        dict(
+            type='FPN',
+            in_channels=[256, 512, 1024, 2048],
+            out_channels=256,
+            start_level=0,
+            add_extra_convs='on_input',
+            num_outs=6),
+        dict(
+            type='SSHC',
+            in_channel=256,
+            num_levels=6,
+            share=True)
+    ],
     bbox_head=dict(
         type='RetinaHead',
         num_classes=1,

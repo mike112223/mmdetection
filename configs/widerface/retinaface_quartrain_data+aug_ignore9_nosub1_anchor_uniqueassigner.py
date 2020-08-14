@@ -55,20 +55,20 @@ data = dict(
         min_size=1,
         offset=0,
         pipeline=test_pipeline),
-    # test=dict(
-    #     type='WIDERFaceDataset',
-    #     ann_file='data/quar_train.txt',
-    #     img_prefix='data/WIDERFace/WIDER_train/',
-    #     min_size=1,
-    #     offset=0,
-    #     pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/WIDERFace/WIDER_val/val.txt',
-        img_prefix='data/WIDERFace/WIDER_val/',
+        ann_file='data/quar_train.txt',
+        img_prefix='data/WIDERFace/WIDER_train/',
         min_size=1,
         offset=0,
-        pipeline=test_pipeline)
+        pipeline=test_pipeline),
+    # test=dict(
+    #     type='WIDERFaceDataset',
+    #     ann_file='data/WIDERFace/WIDER_val/val.txt',
+    #     img_prefix='data/WIDERFace/WIDER_val/',
+    #     min_size=1,
+    #     offset=0,
+    #     pipeline=test_pipeline)
 )
 
 
@@ -118,10 +118,9 @@ model = dict(
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
-        type='MaxIoUAssigner',
-        pos_iou_thr=0.5,
+        type='UniqueMaxIoUAssigner',
         neg_iou_thr=0.3,
-        min_pos_iou=0,
+        min_pos_iou=0.3,
         ignore_iof_thr=0.5),
     allowed_border=-1,
     pos_weight=-1,

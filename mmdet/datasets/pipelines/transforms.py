@@ -1,5 +1,7 @@
 import inspect
 
+import cv2
+
 import mmcv
 import numpy as np
 from numpy import random
@@ -1060,13 +1062,16 @@ class RandomSquareCrop(object):
 
         while True:
 
+            if self.crop_ratio is not None:
+                scale = np.random.uniform(self.crop_ratio_min, self.crop_ratio_max)
+            elif self.crop_choice is not None:
+                scale = np.random.choice(self.crop_choice)
+
+            # print(scale, img.shape[:2], boxes)
+            # import cv2
+            # cv2.imwrite('aaa.png', img)
+
             for i in range(250):
-
-                if self.crop_ratio is not None:
-                    scale = np.random.uniform(self.crop_ratio_min, self.crop_ratio_max)
-                elif self.crop_choice is not None:
-                    scale = np.random.choice(self.crop_choice)
-
                 short_side = min(w, h)
                 cw = int(scale * short_side)
                 ch = cw
@@ -1305,7 +1310,29 @@ class Albu(object):
         return updated_dict
 
     def __call__(self, results):
+
+        # img = results['img'].copy()
+        # bbox = results['gt_bboxes']
+        # ignore_bbox = results['gt_bboxes_ignore']
+
+        # for j in range(len(bbox)):
+        #     x1, y1, x2, y2 = bbox[j]
+        #     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+
+        # for j in range(len(ignore_bbox)):
+        #     x1, y1, x2, y2 = ignore_bbox[j]
+        #     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 0), 2)
+
+        # cv2.imwrite('ccc.png', img)
+
         # dict to albumentations format
+        gt_bboxes_num = len(results['gt_bboxes'])
+        gt_bboxes_ignore_num = len(results['gt_bboxes_ignore'])
+        gt_bboxes_inds = list(range(gt_bboxes_num))
+        gt_bboxes_ignore_inds = list(range(
+            gt_bboxes_num, gt_bboxes_num + gt_bboxes_ignore_num))
+        results['gt_bboxes'] = np.concatenate([results['gt_bboxes'],
+                                               results['gt_bboxes_ignore']])
         results = self.mapper(results, self.keymap_to_albu)
         # TODO: add bbox_fields
         if 'bboxes' in results:
@@ -1315,6 +1342,11 @@ class Albu(object):
             # add pseudo-field for filtration
             if self.filter_lost_elements:
                 results['idx_mapper'] = np.arange(len(results['bboxes']))
+            h, w = results['image'].shape[:2]
+
+            # print(results['bboxes'])
+            results['bboxes'] = albumentations.normalize_bboxes(
+                results['bboxes'], h, w)
 
         # TODO: Support mask structure in albu
         if 'masks' in results:
@@ -1327,10 +1359,20 @@ class Albu(object):
         results = self.aug(**results)
 
         if 'bboxes' in results:
+            h, w = results['image'].shape[:2]
+            results['bboxes'] = albumentations.denormalize_bboxes(
+                results['bboxes'], h, w)
+            # print(results['bboxes'])
             if isinstance(results['bboxes'], list):
                 results['bboxes'] = np.array(
                     results['bboxes'], dtype=np.float32)
             results['bboxes'] = results['bboxes'].reshape(-1, 4)
+            results['bboxes'][:, 0::2] = np.clip(results['bboxes'][:, 0::2],
+                                                 0, w)
+            results['bboxes'][:, 1::2] = np.clip(results['bboxes'][:, 1::2],
+                                                 0, h)
+
+            # print(results['bboxes'])
 
             # filter label_fields
             if self.filter_lost_elements:
@@ -1356,10 +1398,41 @@ class Albu(object):
 
         # back to the original format
         results = self.mapper(results, self.keymap_back)
+        results['gt_bboxes_ignore'] = results['gt_bboxes'][gt_bboxes_ignore_inds]
+        results['gt_bboxes'] = results['gt_bboxes'][gt_bboxes_inds]
+
+        # filter
+        h, w = results['img'].shape[:2]
+        for key in ['gt_bboxes', 'gt_bboxes_ignore']:
+            bboxes = results[key]
+            bboxes[:, 0::2] = np.clip(bboxes[:, 0::2], 0, w)
+            bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, h)
+            x1 = bboxes[:, 0]
+            y1 = bboxes[:, 1]
+            x2 = bboxes[:, 2]
+            y2 = bboxes[:, 3]
+            mask = (x1 >= 0) & (y1 >= 0) & (x2 > x1) & (y2 > y1)
+            results[key] = bboxes[mask]
+            if key == 'gt_bboxes':
+                results['gt_labels'] = results['gt_labels'][mask]
 
         # update final shape
         if self.update_pad_shape:
             results['pad_shape'] = results['img'].shape
+
+        # img = results['img'].copy()
+        # bbox = results['gt_bboxes']
+        # ignore_bbox = results['gt_bboxes_ignore']
+
+        # for j in range(len(bbox)):
+        #     x1, y1, x2, y2 = bbox[j]
+        #     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+
+        # for j in range(len(ignore_bbox)):
+        #     x1, y1, x2, y2 = ignore_bbox[j]
+        #     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 0), 2)
+
+        # cv2.imwrite('bbb.png', img)
 
         return results
 

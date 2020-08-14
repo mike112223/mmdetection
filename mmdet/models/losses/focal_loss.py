@@ -1,3 +1,6 @@
+from functools import partial
+
+# import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.ops import sigmoid_focal_loss as _sigmoid_focal_loss
@@ -93,6 +96,8 @@ class FocalLoss(nn.Module):
                  use_sigmoid=True,
                  gamma=2.0,
                  alpha=0.25,
+                 no_focal_pos=False,
+                 bg_id=1,
                  reduction='mean',
                  loss_weight=1.0):
         """`Focal Loss <https://arxiv.org/abs/1708.02002>`_
@@ -116,6 +121,8 @@ class FocalLoss(nn.Module):
         self.alpha = alpha
         self.reduction = reduction
         self.loss_weight = loss_weight
+        self.no_focal_pos = no_focal_pos
+        self.bg_id = bg_id
 
     def forward(self,
                 pred,
@@ -142,6 +149,14 @@ class FocalLoss(nn.Module):
         assert reduction_override in (None, 'none', 'mean', 'sum')
         reduction = (
             reduction_override if reduction_override else self.reduction)
+        if self.no_focal_pos:
+            return self.focal_neg_only(
+                pred=pred,
+                target=target,
+                weight=weight,
+                avg_factor=avg_factor
+            )
+
         if self.use_sigmoid:
             loss_cls = self.loss_weight * sigmoid_focal_loss(
                 pred,
@@ -151,6 +166,40 @@ class FocalLoss(nn.Module):
                 alpha=self.alpha,
                 reduction=reduction,
                 avg_factor=avg_factor)
+        else:
+            raise NotImplementedError
+        return loss_cls
+
+    def focal_neg_only(self,
+                       pred,
+                       target,
+                       weight=None,
+                       avg_factor=None):
+        reduction = 'sum'
+        if self.use_sigmoid:
+            lf = partial(
+                sigmoid_focal_loss,
+                alpha=self.alpha,
+                reduction=reduction,
+                avg_factor=None
+            )
+            pos_mask = target != self.bg_id
+            neg_mask = target == self.bg_id
+
+            loss_pos = self.loss_weight * lf(
+                pred=pred[pos_mask],
+                target=target[pos_mask],
+                gamma=2.,
+                weight=weight[pos_mask] if weight is not None else None
+            ) if pos_mask.any() else 0
+            loss_neg = self.loss_weight * lf(
+                pred=pred[neg_mask],
+                target=target[neg_mask],
+                gamma=self.gamma,
+                weight=weight[neg_mask] if weight is not None else None
+            ) if neg_mask.any() else 0
+            loss_cls = (loss_pos + loss_neg) / (
+                avg_factor if avg_factor else pred.numel())
         else:
             raise NotImplementedError
         return loss_cls
