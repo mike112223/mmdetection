@@ -4,10 +4,11 @@ from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
 from ..builder import HEADS
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
+from mmdet.core import bbox_overlaps
 
 
 @HEADS.register_module()
-class RetinaHead(AnchorHead):
+class QFLHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -45,7 +46,7 @@ class RetinaHead(AnchorHead):
         self.norm_cfg = norm_cfg
         self.coord_cfg = coord_cfg
 
-        super(RetinaHead, self).__init__(
+        super(QFLHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -129,3 +130,78 @@ class RetinaHead(AnchorHead):
         cls_score = self.retina_cls(cls_feat)
         bbox_pred = self.retina_reg(reg_feat)
         return cls_score, bbox_pred
+
+    def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
+                    bbox_targets, bbox_weights, num_total_samples):
+        """Compute loss of a single scale level.
+
+        Args:
+            cls_score (Tensor): Box scores for each scale level
+                Has shape (N, num_anchors * num_classes, H, W).
+            bbox_pred (Tensor): Box energies / deltas for each scale
+                level with shape (N, num_anchors * 4, H, W).
+            anchors (Tensor): Box reference for each scale level with shape
+                (N, num_total_anchors, 4).
+            labels (Tensor): Labels of each anchors with shape
+                (N, num_total_anchors).
+            label_weights (Tensor): Label weights of each anchor with shape
+                (N, num_total_anchors)
+            bbox_targets (Tensor): BBox regression targets of each anchor wight
+                shape (N, num_total_anchors, 4).
+            bbox_weights (Tensor): BBox regression loss weights of each anchor
+                with shape (N, num_total_anchors, 4).
+            num_total_samples (int): If sampling, num total samples equal to
+                the number of total anchors; Otherwise, it is the number of
+                positive anchors.
+
+        Returns:
+            dict[str, Tensor]: A dictionary of loss components.
+        """
+        anchors = anchors.reshape(-1, 4)
+        labels = labels.reshape(-1)
+        label_weights = label_weights.reshape(-1)
+        cls_score = cls_score.permute(0, 2, 3,
+                                      1).reshape(-1, self.cls_out_channels)
+
+        bbox_targets = bbox_targets.reshape(-1, 4)
+        bbox_weights = bbox_weights.reshape(-1, 4)
+        bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
+
+        bg_class_ind = self.num_classes
+        pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
+        score = label_weights.new_zeros(labels.shape)
+
+        if len(pos_inds) > 0:
+            # dx, dy, dw, dh
+            pos_bbox_targets = bbox_targets[pos_inds]
+            # tx, ty, tw, th
+            pos_bbox_pred = bbox_pred[pos_inds]
+            # x1, y1, x2, y2
+            pos_anchors = anchors[pos_inds]
+            # x1, y1, x2 ,y2
+            pos_decode_bbox_pred = self.bbox_coder.decode(pos_anchors,
+                                                          pos_bbox_pred)
+
+            pos_bboxes = self.bbox_coder.decode(pos_anchors,
+                                                pos_bbox_targets)
+
+            score[pos_inds] = bbox_overlaps(
+                pos_decode_bbox_pred.detach(),
+                pos_bboxes,
+                is_aligned=True)
+
+        loss_cls = self.loss_cls(
+            cls_score, (labels, score),
+            weight=label_weights,
+            avg_factor=num_total_samples)
+
+        if self.reg_decoded_bbox:
+            anchors = anchors.reshape(-1, 4)
+            bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
+
+        loss_bbox = self.loss_bbox(
+            bbox_pred,
+            bbox_targets,
+            bbox_weights,
+            avg_factor=num_total_samples)
+        return loss_cls, loss_bbox

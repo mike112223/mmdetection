@@ -48,12 +48,13 @@ class PAFPN(FPN):
                  no_norm_on_lateral=False,
                  conv_cfg=None,
                  norm_cfg=None,
-                 act_cfg=None):
+                 act_cfg=None,
+                 upsample_cfg=dict(mode='nearest')):
         super(PAFPN,
               self).__init__(in_channels, out_channels, num_outs, start_level,
                              end_level, add_extra_convs, extra_convs_on_inputs,
                              relu_before_extra_convs, no_norm_on_lateral,
-                             conv_cfg, norm_cfg, act_cfg)
+                             conv_cfg, norm_cfg, act_cfg, upsample_cfg)
         # add extra bottom up pathway
         self.downsample_convs = nn.ModuleList()
         self.pafpn_convs = nn.ModuleList()
@@ -96,7 +97,7 @@ class PAFPN(FPN):
         for i in range(used_backbone_levels - 1, 0, -1):
             prev_shape = laterals[i - 1].shape[2:]
             laterals[i - 1] += F.interpolate(
-                laterals[i], size=prev_shape, mode='nearest')
+                laterals[i], size=prev_shape, **self.upsample_cfg)
 
         # build outputs
         # part 1: from original levels

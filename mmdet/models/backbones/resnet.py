@@ -7,7 +7,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 from mmdet.utils import get_root_logger
 from ..builder import BACKBONES
-from ..utils import ResLayer
+from ..utils import ResLayer, CoordLayer
 
 
 class BasicBlock(nn.Module):
@@ -381,7 +381,8 @@ class ResNet(nn.Module):
                  stage_with_dcn=(False, False, False, False),
                  plugins=None,
                  with_cp=False,
-                 zero_init_residual=True):
+                 zero_init_residual=True,
+                 coord_cfg=None,):
         super(ResNet, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError(f'invalid depth {depth} for resnet')
@@ -411,9 +412,14 @@ class ResNet(nn.Module):
             assert len(stage_with_dcn) == num_stages
         self.plugins = plugins
         self.zero_init_residual = zero_init_residual
+        self.coord_cfg = coord_cfg
+
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
         self.inplanes = stem_channels
+
+        if self.coord_cfg is not None:
+            self.coord = CoordLayer(**self.coord_cfg)
 
         self._make_stem_layer(in_channels, stem_channels)
 
@@ -523,6 +529,9 @@ class ResNet(nn.Module):
         return getattr(self, self.norm1_name)
 
     def _make_stem_layer(self, in_channels, stem_channels):
+        if self.coord_cfg is not None:
+            in_channels += 2
+
         if self.deep_stem:
             self.stem = nn.Sequential(
                 build_conv_layer(
@@ -622,6 +631,9 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         """Forward function."""
+        if self.coord_cfg is not None:
+            x = self.coord(x)
+
         if self.deep_stem:
             x = self.stem(x)
         else:

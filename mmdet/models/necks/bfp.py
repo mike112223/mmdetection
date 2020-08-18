@@ -34,7 +34,8 @@ class BFP(nn.Module):
                  refine_level=2,
                  refine_type=None,
                  conv_cfg=None,
-                 norm_cfg=None):
+                 norm_cfg=None,
+                 upsample_cfg=dict(mode='nearest')):
         super(BFP, self).__init__()
         assert refine_type in [None, 'conv', 'non_local']
 
@@ -42,6 +43,7 @@ class BFP(nn.Module):
         self.num_levels = num_levels
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
+        self.upsample_cfg = upsample_cfg.copy()
 
         self.refine_level = refine_level
         self.refine_type = refine_type
@@ -82,7 +84,7 @@ class BFP(nn.Module):
                     inputs[i], output_size=gather_size)
             else:
                 gathered = F.interpolate(
-                    inputs[i], size=gather_size, mode='nearest')
+                    inputs[i], size=gather_size, **self.upsample_cfg)
             feats.append(gathered)
 
         bsf = sum(feats) / len(feats)
@@ -96,7 +98,7 @@ class BFP(nn.Module):
         for i in range(self.num_levels):
             out_size = inputs[i].size()[2:]
             if i < self.refine_level:
-                residual = F.interpolate(bsf, size=out_size, mode='nearest')
+                residual = F.interpolate(bsf, size=out_size, **self.upsample_cfg)
             else:
                 residual = F.adaptive_max_pool2d(bsf, output_size=out_size)
             outs.append(residual + inputs[i])

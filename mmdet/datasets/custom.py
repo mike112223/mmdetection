@@ -191,6 +191,7 @@ class CustomDataset(Dataset):
             if data is None:
                 idx = self._rand_another(idx)
                 continue
+#            print(data['img_metas'].data['filename'])
 
             # import cv2
             # img = data['img'].data

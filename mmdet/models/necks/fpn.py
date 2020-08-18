@@ -4,6 +4,7 @@ from mmcv.cnn import ConvModule, xavier_init
 
 from mmdet.core import auto_fp16
 from ..builder import NECKS
+from ..utils import CoordLayer
 
 
 @NECKS.register_module()
@@ -74,6 +75,7 @@ class FPN(nn.Module):
                  conv_cfg=None,
                  norm_cfg=None,
                  act_cfg=None,
+                 coord_cfg=None,
                  upsample_cfg=dict(mode='nearest')):
         super(FPN, self).__init__()
         assert isinstance(in_channels, list)
@@ -84,8 +86,12 @@ class FPN(nn.Module):
         self.relu_before_extra_convs = relu_before_extra_convs
         self.no_norm_on_lateral = no_norm_on_lateral
         self.fp16_enabled = False
+        self.coord_cfg = coord_cfg
         self.upsample_cfg = upsample_cfg.copy()
         self.extra_convs_on_inputs = extra_convs_on_inputs
+
+        if self.coord_cfg is not None:
+            self.coord = CoordLayer(**self.coord_cfg)
 
         if end_level == -1:
             self.backbone_end_level = self.num_ins
@@ -114,8 +120,13 @@ class FPN(nn.Module):
         self.fpn_convs = nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
+            if self.coord_cfg is not None:
+                chn = in_channels[i] + 2
+            else:
+                chn = in_channels[i]
+
             l_conv = ConvModule(
-                in_channels[i],
+                chn,
                 out_channels,
                 1,
                 conv_cfg=conv_cfg,
@@ -167,9 +178,14 @@ class FPN(nn.Module):
         """Forward function."""
         assert len(inputs) == len(self.in_channels)
 
+        if self.coord_cfg is not None:
+            cinputs = self.coord(inputs)
+        else:
+            cinputs = inputs
+
         # build laterals
         laterals = [
-            lateral_conv(inputs[i + self.start_level])
+            lateral_conv(cinputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
 

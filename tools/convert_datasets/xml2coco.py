@@ -47,29 +47,34 @@ data = dict(
         times=2,
         dataset=dict(
             type='WIDERFaceDataset',
-            ann_file='data/quar_train.txt',
+            ann_file='data/WIDERFace/WIDER_train/train.txt',
             img_prefix='data/WIDERFace/WIDER_train/',
-            min_size=1,
+            min_size=9,
+            offset=0,
             pipeline=train_pipeline)),
     val=dict(
         type='WIDERFaceDataset',
         ann_file='data/WIDERFace/WIDER_val/val.txt',
         img_prefix='data/WIDERFace/WIDER_val/',
         min_size=1,
+        offset=0,
         pipeline=test_pipeline),
     test=dict(
         type='WIDERFaceDataset',
-        ann_file='data/quar_train.txt',
+        ann_file='data/WIDERFace/WIDER_train/train.txt',
         img_prefix='data/WIDERFace/WIDER_train/',
-        min_size=1,
+        min_size=9,
+        offset=0,
         pipeline=test_pipeline),
     # test=dict(
     #     type='WIDERFaceDataset',
     #     ann_file='data/WIDERFace/WIDER_val/val.txt',
     #     img_prefix='data/WIDERFace/WIDER_val/',
     #     min_size=1,
+    #     offset=0,
     #     pipeline=test_pipeline)
 )
+
 
 dataset = build_dataset(data['test'])
 
@@ -131,5 +136,5 @@ for d in data:
 
         ann_id += 1
 
-with open('widerface_train.json', 'w') as f:
+with open('widerface_fulltrain.json', 'w') as f:
     json.dump(json_data, f)
