@@ -34,7 +34,7 @@ def max_iou_analysis_area_based():
 
     # data = CocoDataset(ann_file='data/widerface_train.json')
     # resize = BboxResize(img_scale=(1333, 800))
-    data = CocoDataset(ann_file='data/widerface_train.json', min_size=9)
+    data = CocoDataset(ann_file='data/widerface_fulltrain.json', min_size=9)
     resize = BboxResize(ratio=1)
     anchor_generator = AnchorGenerator(
         strides=[4, 8, 16, 32, 64],

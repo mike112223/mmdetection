@@ -34,7 +34,7 @@ def assigner_iou_analysis():
 
     # data = CocoDataset(ann_file='/DATA/home/chenhaowang/Datasets/COCO2017/annotations/instances_train2017.json')
     # resize = BboxResize(img_scale=(1333, 800))
-    data = CocoDataset(ann_file='data/widerface_train.json', min_size=9)
+    data = CocoDataset(ann_file='data/widerface_fulltrain.json', min_size=9)
     resize = BboxResize(ratio=1)
     anchor_generator = AnchorGenerator(
         strides=[4, 8, 16, 32, 64, 128],

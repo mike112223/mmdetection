@@ -19,11 +19,15 @@ from .retina_sepbn_head import RetinaSepBNHead
 from .rpn_head import RPNHead
 from .ssd_head import SSDHead
 from .qfl_head import QFLHead
+from .noisy_anchor_head import NoisyAnchorHead
+from .retina_prop_head import RetinaPropHead
+from .retina_anchor_prop_head import RetinaAnchorPropHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
     'RPNHead', 'GARPNHead', 'RetinaHead', 'RetinaSepBNHead', 'GARetinaHead',
     'SSDHead', 'FCOSHead', 'RepPointsHead', 'FoveaHead',
     'FreeAnchorRetinaHead', 'ATSSHead', 'FSAFHead', 'NASFCOSHead',
-    'PISARetinaHead', 'PISASSDHead', 'GFLHead', 'CornerHead', 'QFLHead'
+    'PISARetinaHead', 'PISASSDHead', 'GFLHead', 'CornerHead', 'QFLHead', 'NoisyAnchorHead',
+    'RetinaPropHead', 'RetinaAnchorPropHead'
 ]
