@@ -62,7 +62,7 @@ class AnchorHead(BaseDenseHead):
         self.use_sigmoid_cls = loss_cls.get('use_sigmoid', False)
         # TODO better way to determine whether sample or not
         self.sampling = loss_cls['type'] not in [
-            'FocalLoss', 'GHMC', 'QualityFocalLoss'
+            'FocalLoss', 'GHMC', 'QualityFocalLoss', 'OHEMLoss'
         ]
         if self.use_sigmoid_cls:
             self.cls_out_channels = num_classes
@@ -495,6 +495,7 @@ class AnchorHead(BaseDenseHead):
             bbox_targets_list,
             bbox_weights_list,
             num_total_samples=num_total_samples)
+        # print(num_total_samples)
         return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))

@@ -199,12 +199,15 @@ class RetinaAnchorPropHead(AnchorHead):
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
 
-        mask = ~((anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds > 0))
+        pos_mask = ((anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds > 0))
+        neg_mask = ((anchor_assign_result.gt_inds == 0) & (prop_assign_result.gt_inds == 0))
+
+        ignore_mask = (~pos_mask) & (~neg_mask)
 
         # print('********', (~mask).sum().data.cpu().numpy(), (anchor_assign_result.gt_inds > 0).sum().data.cpu().numpy(), (prop_assign_result.gt_inds > 0).sum().data.cpu().numpy())
 
-        anchor_assign_result.gt_inds[mask] = 0
-        anchor_assign_result.labels[mask] = -1
+        anchor_assign_result.gt_inds[ignore_mask] = -1
+        anchor_assign_result.labels[ignore_mask] = -1
 
         sampling_result = self.sampler.sample(anchor_assign_result, anchors,
                                               gt_bboxes)
@@ -215,7 +218,7 @@ class RetinaAnchorPropHead(AnchorHead):
         labels = anchors.new_full((num_valid_anchors, ),
                                   self.background_label,
                                   dtype=torch.long)
-    
+
         label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
 
         pos_inds = sampling_result.pos_inds

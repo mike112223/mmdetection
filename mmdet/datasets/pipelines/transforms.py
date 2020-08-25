@@ -705,11 +705,17 @@ class PhotoMetricDistortion(object):
                  brightness_delta=32,
                  contrast_range=(0.5, 1.5),
                  saturation_range=(0.5, 1.5),
-                 hue_delta=18):
+                 hue_delta=18,
+                 warmup_epoch=1,
+                 dataset_length_per_gpu=-1,
+                 p=0.5):
         self.brightness_delta = brightness_delta
         self.contrast_lower, self.contrast_upper = contrast_range
         self.saturation_lower, self.saturation_upper = saturation_range
         self.hue_delta = hue_delta
+        self.warmup = warmup_epoch * dataset_length_per_gpu
+        self.count = 0
+        self.p = p
 
     def __call__(self, results):
         """Call function to perform photometric distortion on images.
@@ -721,57 +727,78 @@ class PhotoMetricDistortion(object):
             dict: Result dict with images distorted.
         """
 
-        if 'img_fields' in results:
-            assert results['img_fields'] == ['img'], \
-                'Only single img_fields is allowed'
-        img = results['img']
-        assert img.dtype == np.float32, \
-            'PhotoMetricDistortion needs the input image of dtype np.float32,'\
-            ' please set "to_float32=True" in "LoadImageFromFile" pipeline'
-        # random brightness
-        if random.randint(2):
-            delta = random.uniform(-self.brightness_delta,
-                                   self.brightness_delta)
-            img += delta
+        if self.count <= self.warmup:
+            p = self.p * (1. * self.count / self.warmup)
+        else:
+            p = self.p
 
-        # mode == 0 --> do random contrast first
-        # mode == 1 --> do random contrast last
-        mode = random.randint(2)
-        if mode == 1:
+        self.count += 1
+
+        # print(p, self.count)
+        def _filter(img):
+            img[img < 0] = 0
+            img[img > 255] = 255
+            return img
+
+        if random.uniform(0, 1) <= p:
+
+            if 'img_fields' in results:
+                assert results['img_fields'] == ['img'], \
+                    'Only single img_fields is allowed'
+            img = results['img']
+            assert img.dtype == np.float32, \
+                'PhotoMetricDistortion needs the input image of dtype np.float32,'\
+                ' please set "to_float32=True" in "LoadImageFromFile" pipeline'
+            # random brightness
             if random.randint(2):
-                alpha = random.uniform(self.contrast_lower,
-                                       self.contrast_upper)
-                img *= alpha
+                delta = random.uniform(-self.brightness_delta,
+                                       self.brightness_delta)
+                img += delta
+                img = _filter(img)
 
-        # convert color from BGR to HSV
-        img = mmcv.bgr2hsv(img)
+            # mode == 0 --> do random contrast first
+            # mode == 1 --> do random contrast last
+            mode = random.randint(2)
+            if mode == 1:
+                if random.randint(2):
+                    alpha = random.uniform(self.contrast_lower,
+                                           self.contrast_upper)
+                    img *= alpha
+                    img = _filter(img)
 
-        # random saturation
-        if random.randint(2):
-            img[..., 1] *= random.uniform(self.saturation_lower,
-                                          self.saturation_upper)
+            # convert color from BGR to HSV
+            img = mmcv.bgr2hsv(img)
 
-        # random hue
-        if random.randint(2):
-            img[..., 0] += random.uniform(-self.hue_delta, self.hue_delta)
-            img[..., 0][img[..., 0] > 360] -= 360
-            img[..., 0][img[..., 0] < 0] += 360
-
-        # convert color from HSV to BGR
-        img = mmcv.hsv2bgr(img)
-
-        # random contrast
-        if mode == 0:
+            # random saturation
             if random.randint(2):
-                alpha = random.uniform(self.contrast_lower,
-                                       self.contrast_upper)
-                img *= alpha
+                img[..., 1] *= random.uniform(self.saturation_lower,
+                                              self.saturation_upper)
 
-        # randomly swap channels
-        if random.randint(2):
-            img = img[..., random.permutation(3)]
+            # random hue
+            if random.randint(2):
+                img[..., 0] += random.uniform(-self.hue_delta, self.hue_delta)
+                img[..., 0][img[..., 0] > 360] -= 360
+                img[..., 0][img[..., 0] < 0] += 360
 
-        results['img'] = img
+            # convert color from HSV to BGR
+            img = mmcv.hsv2bgr(img)
+            img = _filter(img)
+
+            # random contrast
+            if mode == 0:
+                if random.randint(2):
+                    alpha = random.uniform(self.contrast_lower,
+                                           self.contrast_upper)
+                    img *= alpha
+                    img = _filter(img)
+
+            # randomly swap channels
+            if random.randint(2):
+                img = img[..., random.permutation(3)]
+
+            results['img'] = img
+            # print('*****', np.min(img), np.max(img))
+
         return results
 
     def __repr__(self):

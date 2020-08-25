@@ -155,8 +155,8 @@ def main():
         if args.eval:
             # dataset.evaluate(outputs, args.eval, **kwargs)
 
-             dataset.evaluate(outputs, 'mAP', scale_ranges=[(0, 8), (8, 16), (16, 24), (24, 32), (32, 96), (96, 5000), (0, 5000)])
-             dataset.evaluate(outputs, 'mAP', scale_ranges=[(8, 10), (10, 12), (12, 14), (14, 16), (8, 16)])
+             dataset.evaluate(outputs, 'mAP', jsonfile_prefix=args.out, scale_ranges=[(0, 8), (8, 16), (16, 24), (24, 32), (32, 96), (96, 5000), (0, 5000)])
+             # dataset.evaluate(outputs, 'mAP', scale_ranges=[(8, 10), (10, 12), (12, 14), (14, 16), (8, 16)])
 
 
 if __name__ == '__main__':

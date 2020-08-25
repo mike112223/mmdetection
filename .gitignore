@@ -130,3 +130,5 @@ nohup*
 *.nfs*
 
 *.swp
+
+*.json

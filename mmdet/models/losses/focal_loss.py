@@ -200,6 +200,18 @@ class FocalLoss(nn.Module):
             ) if neg_mask.any() else 0
             loss_cls = (loss_pos + loss_neg) / (
                 avg_factor if avg_factor else pred.numel())
+
+            # if not isinstance(loss_pos, int):
+            #     x = loss_pos.detach().data.cpu().numpy()
+            # else:
+            #     x = loss_pos
+            # if not isinstance(loss_neg, int):
+            #     y = loss_neg.detach().data.cpu().numpy()
+            # else:
+            #     y = loss_neg
+
+            # print('pos', x, 'neg', y, 'avg', avg_factor)
+
         else:
             raise NotImplementedError
         return loss_cls
