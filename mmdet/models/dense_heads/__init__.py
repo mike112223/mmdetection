@@ -22,6 +22,7 @@ from .qfl_head import QFLHead
 from .noisy_anchor_head import NoisyAnchorHead
 from .retina_prop_head import RetinaPropHead
 from .retina_anchor_prop_head import RetinaAnchorPropHead
+from .iou_balanced_retina_head import IouBalancedRetinaHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -29,5 +30,5 @@ __all__ = [
     'SSDHead', 'FCOSHead', 'RepPointsHead', 'FoveaHead',
     'FreeAnchorRetinaHead', 'ATSSHead', 'FSAFHead', 'NASFCOSHead',
     'PISARetinaHead', 'PISASSDHead', 'GFLHead', 'CornerHead', 'QFLHead', 'NoisyAnchorHead',
-    'RetinaPropHead', 'RetinaAnchorPropHead'
+    'RetinaPropHead', 'RetinaAnchorPropHead', 'IouBalancedRetinaHead'
 ]
