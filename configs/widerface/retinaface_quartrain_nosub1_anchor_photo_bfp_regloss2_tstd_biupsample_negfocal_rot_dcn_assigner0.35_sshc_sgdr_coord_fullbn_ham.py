@@ -118,7 +118,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='HAMRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -132,12 +132,18 @@ model = dict(
             scales_per_octave=3,
             ratios=[1.3],
             strides=[4, 8, 16, 32, 64, 128]),
+        prop_assigner=dict(
+            type='MaxIoUAssigner',
+            pos_iou_thr=0.7,
+            neg_iou_thr=0.35,
+            min_pos_iou=0.7,
+            ignore_iof_thr=-1),
         bbox_coder=dict(
             type='DeltaXYWHBBoxCoder',
             target_means=[.0, .0, .0, .0],
             target_stds=[0.135, 0.135, 0.2, 0.2]),
         loss_cls=dict(
-            type='FocalLossTmp',
+            type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
@@ -177,7 +183,7 @@ lr_config = dict(
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 180
+total_epochs = 181
 log_config = dict(interval=100)
 
 

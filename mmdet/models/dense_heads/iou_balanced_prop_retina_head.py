@@ -7,11 +7,11 @@ from ..builder import HEADS
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
 from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
-                        multi_apply, unmap, build_assigner)
+                        multi_apply, unmap, bbox_overlaps)
 
 
 @HEADS.register_module()
-class RetinaAnchorPropHead(AnchorHead):
+class IouBalancedPropRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -42,23 +42,20 @@ class RetinaAnchorPropHead(AnchorHead):
                      scales_per_octave=3,
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
-                 prop_assigner=dict(
-                     type='MaxIoUAssigner',
-                     pos_iou_thr=0.35,
-                     neg_iou_thr=0.35,
-                     min_pos_iou=0.35,
-                     ignore_iof_thr=-1),
                  coord_cfg=None,
                  custom_init=None,
+                 eta=1.5,
+                 lambd=1.5,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
-        self.prop_assigner = build_assigner(prop_assigner)
+        self.eta = eta
+        self.lambd = lambd
 
-        super(RetinaAnchorPropHead, self).__init__(
+        super(IouBalancedPropRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -198,7 +195,7 @@ class RetinaAnchorPropHead(AnchorHead):
 
         target_bboxes = self.bbox_coder.decode(anchors, bbox_preds)
 
-        prop_assign_result = self.prop_assigner.assign(
+        prop_assign_result = self.assigner.assign(
             target_bboxes, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
 
@@ -206,10 +203,7 @@ class RetinaAnchorPropHead(AnchorHead):
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
 
-        pos_mask = ((anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds > 0))
-        neg_mask = ((anchor_assign_result.gt_inds == 0) & (prop_assign_result.gt_inds == 0))
-
-        ignore_mask = (~pos_mask) & (~neg_mask)
+        ignore_mask = ((anchor_assign_result.gt_inds == 0) & (prop_assign_result.gt_inds > 0))
 
         # print('********', (~mask).sum().data.cpu().numpy(), (anchor_assign_result.gt_inds > 0).sum().data.cpu().numpy(), (prop_assign_result.gt_inds > 0).sum().data.cpu().numpy())
 
@@ -452,3 +446,102 @@ class RetinaAnchorPropHead(AnchorHead):
             bbox_weights_list,
             num_total_samples=num_total_samples)
         return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
+
+    def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
+                    bbox_targets, bbox_weights, num_total_samples):
+        """Compute loss of a single scale level.
+
+        Args:
+            cls_score (Tensor): Box scores for each scale level
+                Has shape (N, num_anchors * num_classes, H, W).
+            bbox_pred (Tensor): Box energies / deltas for each scale
+                level with shape (N, num_anchors * 4, H, W).
+            anchors (Tensor): Box reference for each scale level with shape
+                (N, num_total_anchors, 4).
+            labels (Tensor): Labels of each anchors with shape
+                (N, num_total_anchors).
+            label_weights (Tensor): Label weights of each anchor with shape
+                (N, num_total_anchors)
+            bbox_targets (Tensor): BBox regression targets of each anchor wight
+                shape (N, num_total_anchors, 4).
+            bbox_weights (Tensor): BBox regression loss weights of each anchor
+                with shape (N, num_total_anchors, 4).
+            num_total_samples (int): If sampling, num total samples equal to
+                the number of total anchors; Otherwise, it is the number of
+                positive anchors.
+
+        Returns:
+            dict[str, Tensor]: A dictionary of loss components.
+        """
+        anchors = anchors.reshape(-1, 4)
+        labels = labels.reshape(-1)
+        label_weights = label_weights.reshape(-1)
+        cls_score = cls_score.permute(0, 2, 3,
+                                      1).reshape(-1, self.cls_out_channels)
+
+        bbox_targets = bbox_targets.reshape(-1, 4)
+        bbox_weights = bbox_weights.reshape(-1, 4)
+        bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
+
+        bg_class_ind = self.num_classes
+        pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
+        score = label_weights.new_zeros(labels.shape)
+
+        loss_cls = self.loss_cls(
+            cls_score,
+            labels,
+            label_weights,
+            reduction_override='none')
+
+        if self.reg_decoded_bbox:
+            anchors = anchors.reshape(-1, 4)
+            bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
+
+        loss_bbox = self.loss_bbox(
+            bbox_pred,
+            bbox_targets,
+            bbox_weights,
+            reduction_override='none')
+
+        if len(pos_inds) > 0:
+            # dx, dy, dw, dh
+            pos_bbox_targets = bbox_targets[pos_inds]
+            # tx, ty, tw, th
+            pos_bbox_pred = bbox_pred[pos_inds]
+            # x1, y1, x2, y2
+            pos_anchors = anchors[pos_inds]
+            # x1, y1, x2 ,y2
+            pos_decode_bbox_pred = self.bbox_coder.decode(pos_anchors,
+                                                          pos_bbox_pred)
+
+            pos_bboxes = self.bbox_coder.decode(pos_anchors,
+                                                pos_bbox_targets)
+
+            score[pos_inds] = bbox_overlaps(
+                pos_decode_bbox_pred.detach(),
+                pos_bboxes,
+                is_aligned=True)
+
+        loss_cls, loss_bbox = self._reweight(
+            loss_cls, loss_bbox, score, pos_inds)
+
+        loss_cls = loss_cls.sum() / num_total_samples
+        loss_bbox = loss_bbox.sum() / num_total_samples
+
+        return loss_cls, loss_bbox
+
+    def _reweight(self, loss_cls, loss_bbox, weight, indexs):
+        weight = weight.reshape(-1, 1)
+        loss_cls[indexs] *= self._normalize(
+            loss_cls[indexs],
+            torch.pow(weight[indexs], self.lambd))
+
+        loss_bbox[indexs] *= self._normalize(
+            loss_bbox[indexs],
+            torch.pow(weight[indexs], self.eta))
+
+        return loss_cls, loss_bbox
+
+    @staticmethod
+    def _normalize(loss, weight):
+        return loss.sum() * weight / (loss * weight).sum()

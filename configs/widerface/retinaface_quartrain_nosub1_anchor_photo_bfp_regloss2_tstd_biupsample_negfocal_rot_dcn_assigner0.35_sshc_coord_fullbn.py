@@ -118,7 +118,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='RetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -137,7 +137,7 @@ model = dict(
             target_means=[.0, .0, .0, .0],
             target_stds=[0.135, 0.135, 0.2, 0.2]),
         loss_cls=dict(
-            type='FocalLossTmp',
+            type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
@@ -169,15 +169,13 @@ optimizer = dict(type='SGD', lr=0.00375, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
-    policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1],
+    policy='CosineAnnealing',
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 180
+total_epochs = 151
 log_config = dict(interval=100)
 
 

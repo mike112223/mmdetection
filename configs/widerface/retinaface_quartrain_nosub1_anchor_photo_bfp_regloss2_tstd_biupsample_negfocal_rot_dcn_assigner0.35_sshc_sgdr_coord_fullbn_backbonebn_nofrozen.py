@@ -85,9 +85,8 @@ model = dict(
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
-        norm_eval=True,
+        norm_eval=False,
         dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
         stage_with_dcn=(False, False, True, True),
         style='pytorch'),
@@ -118,7 +117,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='RetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -137,7 +136,7 @@ model = dict(
             target_means=[.0, .0, .0, .0],
             target_stds=[0.135, 0.135, 0.2, 0.2]),
         loss_cls=dict(
-            type='FocalLossTmp',
+            type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,

@@ -118,7 +118,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='IouBalancedNoisyRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,

@@ -86,8 +86,8 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
-        norm_eval=True,
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_eval=False,
         dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
         stage_with_dcn=(False, False, True, True),
         style='pytorch'),
@@ -99,7 +99,7 @@ model = dict(
             start_level=0,
             add_extra_convs='on_input',
             num_outs=6,
-            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
         dict(
@@ -108,23 +108,23 @@ model = dict(
             num_levels=6,
             refine_level=2,
             refine_type='non_local',
-            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             upsample_cfg=dict(mode='bilinear')),
         dict(
             type='SSHC',
             in_channel=256,
             num_levels=6,
-            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='RetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
         feat_channels=256,
         coord_cfg=dict(with_r=False),
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         #norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
         anchor_generator=dict(
             type='AnchorGenerator',
@@ -137,14 +137,14 @@ model = dict(
             target_means=[.0, .0, .0, .0],
             target_stds=[0.135, 0.135, 0.2, 0.2]),
         loss_cls=dict(
-            type='FocalLossTmp',
+            type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
             no_focal_pos=True,
             bg_id=1,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
+        loss_bbox=dict(type='SmoothL1Loss', loss_weight=2.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(

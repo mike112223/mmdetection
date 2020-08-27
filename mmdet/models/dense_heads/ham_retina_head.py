@@ -11,7 +11,7 @@ from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
 
 
 @HEADS.register_module()
-class RetinaAnchorPropHead(AnchorHead):
+class HAMRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -58,7 +58,7 @@ class RetinaAnchorPropHead(AnchorHead):
         self.custom_init = custom_init
         self.prop_assigner = build_assigner(prop_assigner)
 
-        super(RetinaAnchorPropHead, self).__init__(
+        super(HAMRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -206,15 +206,14 @@ class RetinaAnchorPropHead(AnchorHead):
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
 
-        pos_mask = ((anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds > 0))
-        neg_mask = ((anchor_assign_result.gt_inds == 0) & (prop_assign_result.gt_inds == 0))
-
-        ignore_mask = (~pos_mask) & (~neg_mask)
-
-        # print('********', (~mask).sum().data.cpu().numpy(), (anchor_assign_result.gt_inds > 0).sum().data.cpu().numpy(), (prop_assign_result.gt_inds > 0).sum().data.cpu().numpy())
+        ignore_mask = (anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds == 0)
+        recall_mask = (prop_assign_result.gt_inds > 0) & (anchor_assign_result.gt_inds == 0)
 
         anchor_assign_result.gt_inds[ignore_mask] = -1
         anchor_assign_result.labels[ignore_mask] = -1
+
+        anchor_assign_result.gt_inds[recall_mask] = prop_assign_result.gt_inds[recall_mask]
+        anchor_assign_result.labels[recall_mask] = prop_assign_result.labels[recall_mask]
 
         sampling_result = self.sampler.sample(anchor_assign_result, anchors,
                                               gt_bboxes)
