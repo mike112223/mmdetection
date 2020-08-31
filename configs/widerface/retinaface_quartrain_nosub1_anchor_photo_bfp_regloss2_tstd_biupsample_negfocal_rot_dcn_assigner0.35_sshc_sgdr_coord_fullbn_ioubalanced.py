@@ -177,7 +177,7 @@ lr_config = dict(
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 180
+total_epochs = 181
 log_config = dict(interval=100)
 
 

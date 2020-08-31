@@ -40,7 +40,7 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=3,
+    samples_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
@@ -118,7 +118,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedPropRetinaHead',
+        type='IouBalancedNoisyRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -149,9 +149,9 @@ model = dict(
 train_cfg = dict(
     assigner=dict(
         type='MaxIoUAssigner',
-        pos_iou_thr=0.35,
-        neg_iou_thr=0.35,
-        min_pos_iou=0.35,
+        pos_iou_thr=1e-6,
+        neg_iou_thr=1e-6,
+        min_pos_iou=1e-6,
         ignore_iof_thr=-1),
     allowed_border=-1,
     pos_weight=-1,
@@ -177,7 +177,7 @@ lr_config = dict(
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 181
+total_epochs = 180
 log_config = dict(interval=100)
 
 

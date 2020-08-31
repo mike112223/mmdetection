@@ -206,7 +206,8 @@ class HAMRetinaHead(AnchorHead):
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
 
-        ignore_mask = (anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds == 0)
+        ignore_mask = ((anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds == 0)) | (
+            (anchor_assign_result.gt_inds == 0) & (prop_assign_result.gt_inds != 0))
         recall_mask = (prop_assign_result.gt_inds > 0) & (anchor_assign_result.gt_inds == 0)
 
         anchor_assign_result.gt_inds[ignore_mask] = -1

@@ -40,7 +40,7 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=3,
+    samples_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
@@ -118,7 +118,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedPropRetinaHead',
+        type='IouBalancedRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -137,7 +137,7 @@ model = dict(
             target_means=[.0, .0, .0, .0],
             target_stds=[0.135, 0.135, 0.2, 0.2]),
         loss_cls=dict(
-            type='FocalLossTmp',
+            type='NegFocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
@@ -177,7 +177,7 @@ lr_config = dict(
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 181
+total_epochs = 180
 log_config = dict(interval=100)
 
 

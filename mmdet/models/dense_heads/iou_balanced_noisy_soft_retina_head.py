@@ -10,7 +10,7 @@ from mmdet.core import bbox_overlaps
 
 
 @HEADS.register_module()
-class IouBalancedNoisyRetinaHead(AnchorHead):
+class IouBalancedNoisySoftRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -56,7 +56,7 @@ class IouBalancedNoisyRetinaHead(AnchorHead):
         self.eta = eta
         self.lambd = lambd
 
-        super(IouBalancedNoisyRetinaHead, self).__init__(
+        super(IouBalancedNoisySoftRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -184,22 +184,6 @@ class IouBalancedNoisyRetinaHead(AnchorHead):
         pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
         score = label_weights.new_zeros(labels.shape)
 
-        loss_cls = self.loss_cls(
-            cls_score,
-            labels,
-            label_weights,
-            reduction_override='none')
-
-        if self.reg_decoded_bbox:
-            anchors = anchors.reshape(-1, 4)
-            bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
-
-        loss_bbox = self.loss_bbox(
-            bbox_pred,
-            bbox_targets,
-            bbox_weights,
-            reduction_override='none')
-
         if len(pos_inds) > 0:
             # dx, dy, dw, dh
             pos_bbox_targets = bbox_targets[pos_inds]
@@ -221,6 +205,22 @@ class IouBalancedNoisyRetinaHead(AnchorHead):
             cls_c = cls_score.sigmoid()[pos_inds].reshape(-1).detach()
 
             score[pos_inds] = self._weight(loc_a, cls_c)
+
+        loss_cls = self.loss_cls(
+            cls_score,
+            (labels, score),
+            label_weights,
+            reduction_override='none')
+
+        if self.reg_decoded_bbox:
+            anchors = anchors.reshape(-1, 4)
+            bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
+
+        loss_bbox = self.loss_bbox(
+            bbox_pred,
+            bbox_targets,
+            bbox_weights,
+            reduction_override='none')
 
         loss_cls, loss_bbox = self._reweight(
             loss_cls, loss_bbox, score, pos_inds)

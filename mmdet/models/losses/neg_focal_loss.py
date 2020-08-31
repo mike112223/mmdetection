@@ -3,19 +3,20 @@ from functools import partial
 # import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from mmcv.ops import sigmoid_focal_loss as _sigmoid_focal_loss
 
 from ..builder import LOSSES
 from .utils import weight_reduce_loss
 
 
 # This method is only for debugging
-def sigmoid_focal_loss(pred,
-                       target,
-                       weight=None,
-                       gamma=2.0,
-                       alpha=0.25,
-                       reduction='mean',
-                       avg_factor=None):
+def py_sigmoid_focal_loss(pred,
+                          target,
+                          weight=None,
+                          gamma=2.0,
+                          alpha=0.25,
+                          reduction='mean',
+                          avg_factor=None):
     """PyTorch version of `Focal Loss <https://arxiv.org/abs/1708.02002>`_.
 
     Args:
@@ -33,9 +34,7 @@ def sigmoid_focal_loss(pred,
             the loss. Defaults to None.
     """
     pred_sigmoid = pred.sigmoid()
-    target = target.type_as(pred).reshape(-1, 1)
-    weight = weight.reshape(-1, 1)
-
+    target = target.type_as(pred)
     pt = (1 - pred_sigmoid) * target + pred_sigmoid * (1 - target)
     focal_weight = (alpha * target + (1 - alpha) *
                     (1 - target)) * pt.pow(gamma)
@@ -45,8 +44,53 @@ def sigmoid_focal_loss(pred,
     return loss
 
 
+def sigmoid_focal_loss(pred,
+                       target,
+                       weight=None,
+                       gamma=2.0,
+                       alpha=0.25,
+                       reduction='mean',
+                       avg_factor=None):
+    r"""A warpper of cuda version `Focal Loss
+    <https://arxiv.org/abs/1708.02002>`_.
+
+    Args:
+        pred (torch.Tensor): The prediction with shape (N, C), C is the number
+            of classes.
+        target (torch.Tensor): The learning label of the prediction.
+        weight (torch.Tensor, optional): Sample-wise loss weight.
+        gamma (float, optional): The gamma for calculating the modulating
+            factor. Defaults to 2.0.
+        alpha (float, optional): A balanced form for Focal Loss.
+            Defaults to 0.25.
+        reduction (str, optional): The method used to reduce the loss into
+            a scalar. Defaults to 'mean'. Options are "none", "mean" and "sum".
+        avg_factor (int, optional): Average factor that is used to average
+            the loss. Defaults to None.
+    """
+    # Function.apply does not accept keyword arguments, so the decorator
+    # "weighted_loss" is not applicable
+    loss = _sigmoid_focal_loss(pred, target, gamma, alpha, None, 'none')
+    if weight is not None:
+        if weight.shape != loss.shape:
+            if weight.size(0) == loss.size(0):
+                # For most cases, weight is of shape (num_priors, ),
+                #  which means it does not have the second axis num_class
+                weight = weight.view(-1, 1)
+            else:
+                # Sometimes, weight per anchor per class is also needed. e.g.
+                #  in FSAF. But it may be flattened of shape
+                #  (num_priors x num_class, ), while loss is still of shape
+                #  (num_priors, num_class).
+                assert weight.numel() == loss.numel()
+                weight = weight.view(loss.size(0), -1)
+        assert weight.ndim == loss.ndim
+    loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
+    return loss
+
+
 @LOSSES.register_module()
-class NoisyFocalLoss(nn.Module):
+class NegFocalLoss(nn.Module):
 
     def __init__(self,
                  use_sigmoid=True,
@@ -70,7 +114,7 @@ class NoisyFocalLoss(nn.Module):
                 "sum".
             loss_weight (float, optional): Weight of loss. Defaults to 1.0.
         """
-        super(NoisyFocalLoss, self).__init__()
+        super(NegFocalLoss, self).__init__()
         assert use_sigmoid is True, 'Only sigmoid focal loss supported now.'
         self.use_sigmoid = use_sigmoid
         self.gamma = gamma
@@ -141,20 +185,18 @@ class NoisyFocalLoss(nn.Module):
                 reduction='none',
                 avg_factor=None
             )
-            label, score = target
-
-            pos_mask = label != self.bg_id
-            neg_mask = label == self.bg_id
+            pos_mask = target != self.bg_id
+            neg_mask = target == self.bg_id
 
             losses[pos_mask] = self.loss_weight * lf(
                 pred=pred[pos_mask],
-                target=score[pos_mask],
-                gamma=2.,
+                target=target[pos_mask],
+                gamma=0.,
                 weight=weight[pos_mask] if weight is not None else None
             ) if pos_mask.any() else 0
             losses[neg_mask] = self.loss_weight * lf(
                 pred=pred[neg_mask],
-                target=score[neg_mask],
+                target=target[neg_mask],
                 gamma=self.gamma,
                 weight=weight[neg_mask] if weight is not None else None
             ) if neg_mask.any() else 0
