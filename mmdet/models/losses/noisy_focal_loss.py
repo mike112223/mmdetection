@@ -11,6 +11,7 @@ from .utils import weight_reduce_loss
 # This method is only for debugging
 def sigmoid_focal_loss(pred,
                        target,
+                       label,
                        weight=None,
                        gamma=2.0,
                        alpha=0.25,
@@ -34,11 +35,12 @@ def sigmoid_focal_loss(pred,
     """
     pred_sigmoid = pred.sigmoid()
     target = target.type_as(pred).reshape(-1, 1)
+    label = 1 - label.reshape(-1, 1)
     weight = weight.reshape(-1, 1)
 
-    pt = (1 - pred_sigmoid) * target + pred_sigmoid * (1 - target)
-    focal_weight = (alpha * target + (1 - alpha) *
-                    (1 - target)) * pt.pow(gamma)
+    pt = (1 - pred_sigmoid) * label + pred_sigmoid * (1 - label)
+    focal_weight = (alpha * label + (1 - alpha) *
+                    (1 - label)) * pt.pow(gamma)
     loss = F.binary_cross_entropy_with_logits(
         pred, target, reduction='none') * focal_weight
     loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
@@ -149,12 +151,14 @@ class NoisyFocalLoss(nn.Module):
             losses[pos_mask] = self.loss_weight * lf(
                 pred=pred[pos_mask],
                 target=score[pos_mask],
+                label=label[pos_mask],
                 gamma=2.,
                 weight=weight[pos_mask] if weight is not None else None
             ) if pos_mask.any() else 0
             losses[neg_mask] = self.loss_weight * lf(
                 pred=pred[neg_mask],
                 target=score[neg_mask],
+                label=label[neg_mask],
                 gamma=self.gamma,
                 weight=weight[neg_mask] if weight is not None else None
             ) if neg_mask.any() else 0
