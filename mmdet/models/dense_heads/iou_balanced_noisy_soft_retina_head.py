@@ -233,11 +233,11 @@ class IouBalancedNoisySoftRetinaHead(AnchorHead):
     def _reweight(self, loss_cls, loss_bbox, weight, indexs):
         weight = weight.reshape(-1, 1)
         loss_cls[indexs] *= self._normalize(
-            loss_cls[indexs],
+            loss_cls[indexs].detach(),
             torch.pow(weight[indexs], self.lambd))
 
         loss_bbox[indexs] *= self._normalize(
-            loss_bbox[indexs],
+            loss_bbox[indexs].detach(),
             torch.pow(weight[indexs], self.eta))
 
         return loss_cls, loss_bbox
