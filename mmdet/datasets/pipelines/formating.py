@@ -193,8 +193,8 @@ class IgnoreAfterAug(object):
         hs = gt_bboxes[:, 3] - gt_bboxes[:, 1]
         ws = gt_bboxes[:, 2] - gt_bboxes[:, 0]
 
-        keep = np.logical_and(hs >= self.min_size, ws >= self.min_size)
-        ignore = np.logical_or(hs < self.min_size, ws < self.min_size)
+        keep = np.logical_and(hs * ws >= self.min_size ** 2)
+        ignore = np.logical_or(hs * ws < self.min_size ** 2)
 
         if np.sum(keep) < len(gt_bboxes):
             # print(keep, ignore, len(gt_bboxes), len(ignore_bboxes))

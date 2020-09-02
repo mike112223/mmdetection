@@ -198,12 +198,8 @@ class HAMRetinaHead(AnchorHead):
 
         target_bboxes = self.bbox_coder.decode(anchors, bbox_preds)
 
-        prop_assign_result = self.prop_assigner.assign(
-            target_bboxes, gt_bboxes, gt_bboxes_ignore,
-            None if self.sampling else gt_labels)
-
         anchor_assign_result = self.assigner.assign(
-            anchors, gt_bboxes, gt_bboxes_ignore,
+            anchors, gt_bboxes, target_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
 
         ignore_mask = ((anchor_assign_result.gt_inds > 0) & (prop_assign_result.gt_inds == 0)) | (
