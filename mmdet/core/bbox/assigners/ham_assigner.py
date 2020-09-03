@@ -209,11 +209,20 @@ class HAMAssigner(BaseAssigner):
 
         prop_overlaps = self.iou_calculator(gt_bboxes, proposals)
 
-        for i, gt in enumerate(gt_bboxes):
-            assigned_gt_inds == i + 1
+        for i in range(len(gt_bboxes)):
+            num_assigned_anchors = (assigned_gt_inds == i + 1).sum()
+            num_compensated = self.K - num_assigned_anchors
+            if num_compensated < 0:
+                continue
 
-        import pdb
-        pdb.set_trace()
+            sorted_iou, sorted_inds = prop_overlaps[i].sort(descending=True)
+            candidate_inds = sorted_inds[sorted_iou > self.T]
+            candidate_mask = assigned_gt_inds[candidate_inds] <= 0
+            if len(candidate_mask) == 0 or candidate_mask.sum() == 0:
+                continue
+
+            recall_inds = candidate_inds[candidate_mask][:num_compensated]
+            assigned_gt_inds[recall_inds] = i + 1
 
         if gt_labels is not None:
             assigned_labels = assigned_gt_inds.new_full((num_bboxes, ), -1)

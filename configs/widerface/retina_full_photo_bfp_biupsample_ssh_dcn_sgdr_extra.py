@@ -81,7 +81,7 @@ model = dict(
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
         stage_with_dcn=(False, False, True, True),
@@ -94,7 +94,7 @@ model = dict(
             start_level=0,
             add_extra_convs='on_input',
             num_outs=6,
-            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             # coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
         dict(
@@ -103,27 +103,24 @@ model = dict(
             num_levels=6,
             refine_level=2,
             refine_type='non_local',
-            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             upsample_cfg=dict(mode='bilinear')),
         dict(
             type='SSHC',
             in_channel=256,
             num_levels=6,
-            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             share=True)
     ],
     bbox_head=dict(
-        type='HAMRetinaHead',
+        type='RetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
         feat_channels=256,
         # coord_cfg=dict(with_r=False),
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         #norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-        T=0.8,
-        F=0.5,
-        K=3,
         anchor_generator=dict(
             type='AnchorGenerator',
             octave_base_scale=2**(4 / 3),
@@ -139,12 +136,14 @@ model = dict(
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
+            no_focal_pos=True,
+            bg_id=1,
             loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
-        type='HAMAssigner',
+        type='MaxIoUAssigner',
         pos_iou_thr=0.35,
         neg_iou_thr=0.35,
         min_pos_iou=0.35,
@@ -159,23 +158,19 @@ test_cfg = dict(
     nms=dict(type='nms', iou_threshold=0.4),
     max_per_img=800)
 
-
 # optimizer
 optimizer = dict(type='SGD', lr=0.00375, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1],
+    periods=[30],
+    restart_weights=[1],
     warmup='linear',
-    warmup_iters=500,
-    warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 121
+total_epochs = 31
 log_config = dict(interval=100)
-
 
 checkpoint_config = dict(interval=1)
 # yapf:disable
@@ -188,6 +183,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_bfp_biupsample_ssh_dcn_sgdr/latest.pth'
 resume_from = None
 workflow = [('train', 1)]
