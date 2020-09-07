@@ -166,14 +166,14 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1],
+    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 181
+total_epochs = 301
 log_config = dict(interval=100)
 
 
