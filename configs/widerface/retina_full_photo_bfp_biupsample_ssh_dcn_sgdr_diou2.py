@@ -136,10 +136,9 @@ model = dict(
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
-            no_focal_pos=True,
-            bg_id=1,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
+        reg_decoded_bbox=True,
+        loss_bbox=dict(type='DIoULoss', loss_weight=2.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -166,14 +165,14 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1],
+    periods=[30, 30, 30, 30],
+    restart_weights=[1, 1, 1, 1],
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 181
+total_epochs = 121
 log_config = dict(interval=100)
 
 

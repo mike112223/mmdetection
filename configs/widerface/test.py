@@ -81,7 +81,8 @@ model = dict(
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        # norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
         norm_eval=False,
         dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
         stage_with_dcn=(False, False, True, True),
@@ -94,7 +95,8 @@ model = dict(
             start_level=0,
             add_extra_convs='on_input',
             num_outs=6,
-            norm_cfg=dict(type='SyncBN', requires_grad=True),
+            # norm_cfg=dict(type='SyncBN', requires_grad=True),
+            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
             # coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
         dict(
@@ -103,13 +105,15 @@ model = dict(
             num_levels=6,
             refine_level=2,
             refine_type='non_local',
-            norm_cfg=dict(type='SyncBN', requires_grad=True),
+            # norm_cfg=dict(type='SyncBN', requires_grad=True),
+            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
             upsample_cfg=dict(mode='bilinear')),
         dict(
             type='SSHC',
             in_channel=256,
             num_levels=6,
-            norm_cfg=dict(type='SyncBN', requires_grad=True),
+            # norm_cfg=dict(type='SyncBN', requires_grad=True),
+            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
             share=True)
     ],
     bbox_head=dict(
@@ -119,7 +123,8 @@ model = dict(
         stacked_convs=4,
         feat_channels=256,
         # coord_cfg=dict(with_r=False),
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        # norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
         #norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
         anchor_generator=dict(
             type='AnchorGenerator',
@@ -148,7 +153,7 @@ train_cfg = dict(
         neg_iou_thr=0.35,
         min_pos_iou=0.35,
         ignore_iof_thr=-1,
-        gpu_assign_thr=100),
+        gpu_assign_thr=100,),
     allowed_border=-1,
     pos_weight=-1,
     debug=False)
@@ -166,14 +171,14 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1],
+    periods=[30, 30, 30, 30],
+    restart_weights=[1, 1, 1, 1],
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 181
+total_epochs = 121
 log_config = dict(interval=100)
 
 

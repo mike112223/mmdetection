@@ -40,7 +40,7 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
         type='WIDERFaceDataset',
@@ -147,7 +147,8 @@ train_cfg = dict(
         pos_iou_thr=0.35,
         neg_iou_thr=0.35,
         min_pos_iou=0.35,
-        ignore_iof_thr=-1),
+        ignore_iof_thr=-1,
+        gpu_assign_thr=100),
     allowed_border=-1,
     pos_weight=-1,
     debug=False)
@@ -158,6 +159,7 @@ test_cfg = dict(
     nms=dict(type='nms', iou_threshold=0.4),
     max_per_img=800)
 
+
 # optimizer
 optimizer = dict(type='SGD', lr=0.00375, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
@@ -166,11 +168,11 @@ lr_config = dict(
     policy='CosineRestart',
     periods=[30],
     restart_weights=[1],
-    warmup='linear',
     min_lr_ratio=1e-2)
 # runtime settings
 total_epochs = 31
 log_config = dict(interval=100)
+
 
 checkpoint_config = dict(interval=1)
 # yapf:disable
@@ -183,6 +185,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_bfp_biupsample_ssh_dcn_sgdr/latest.pth'
+load_from = None
 resume_from = None
 workflow = [('train', 1)]

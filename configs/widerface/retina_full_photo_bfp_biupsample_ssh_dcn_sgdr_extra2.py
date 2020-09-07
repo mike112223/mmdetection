@@ -166,14 +166,11 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1],
-    warmup='linear',
-    warmup_iters=500,
-    warmup_ratio=1e-1,
+    periods=[30, 30],
+    restart_weights=[1, 1],
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 181
+total_epochs = 61
 log_config = dict(interval=100)
 
 
@@ -188,6 +185,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_bfp_biupsample_ssh_dcn_sgdr_extra/latest.pth'
 resume_from = None
 workflow = [('train', 1)]

@@ -207,36 +207,34 @@ class HAMRetinaHead(AnchorHead):
             None if self.sampling else gt_labels)
 
         # HAMBox assigner
-        proposals = self.bbox_coder.decode(anchors, bbox_preds)
+        proposals = self.bbox_coder.decode(anchors, bbox_preds).detach()
         prop_overlaps = bbox_overlaps(gt_bboxes, proposals)
         compensates = gt_labels.new_zeros((len(anchors), ))
 
+        # compensate
         for i in range(len(gt_bboxes)):
             sorted_iou, sorted_inds = prop_overlaps[i].sort(descending=True)
-
-            # ignore
-            candidate_inds = sorted_inds[(sorted_iou < self.T)
-                                         & (sorted_iou >= self.F)]
-            ignore_mask = anchor_assign_result.gt_inds[candidate_inds] == 0
-            ignore_inds = candidate_inds[ignore_mask]
-            if len(ignore_inds) > 0:
-                anchor_assign_result.gt_inds[ignore_inds] = -1
-                anchor_assign_result.labels[ignore_inds] = -1
-
-            # compensate
             num_assigned_anchors = (anchor_assign_result.gt_inds == i + 1).sum()
             num_compensated = self.K - num_assigned_anchors
-            if num_compensated <= 0:
-                continue
-            candidate_inds = sorted_inds[sorted_iou >= self.T]
-            candidate_mask = anchor_assign_result.gt_inds[candidate_inds] <= 0
-            if len(candidate_mask) == 0 or candidate_mask.sum() == 0:
-                continue
+            if num_compensated > 0:
+                print(sorted_iou[0])
+                candidate_inds = sorted_inds[sorted_iou >= self.T]
+                candidate_mask = anchor_assign_result.gt_inds[candidate_inds] <= 0
 
-            compensated_inds = candidate_inds[candidate_mask][:num_compensated]
-            anchor_assign_result.gt_inds[compensated_inds] = i + 1
-            anchor_assign_result.labels[compensated_inds] = gt_labels[i]
-            compensates[compensated_inds] = 1
+                if len(candidate_mask) > 0 and candidate_mask.sum() > 0:
+                    compensated_inds = candidate_inds[candidate_mask][:num_compensated]
+                    anchor_assign_result.gt_inds[compensated_inds] = i + 1
+                    anchor_assign_result.labels[compensated_inds] = gt_labels[i]
+                    compensates[compensated_inds] = 1
+
+        # ignore
+        ignore_mask1 = (prop_overlaps >= self.F).sum(dim=0) > 0
+        ignore_mask2 = anchor_assign_result.gt_inds == 0
+        ignore_mask = ignore_mask1 & ignore_mask2
+        if ignore_mask.sum() > 0:
+            print('***ignore:', len(ignore_mask.nonzero()))
+            anchor_assign_result.gt_inds[ignore_mask] = -1
+            anchor_assign_result.labels[ignore_mask] = -1
 
         sampling_result = self.sampler.sample(anchor_assign_result, anchors,
                                               gt_bboxes)
@@ -535,8 +533,7 @@ class HAMRetinaHead(AnchorHead):
             bbox_weights,
             reduction_override='none')
 
-        import pdb
-        pdb.set_trace()
+        print('num compensate:', num_compensate)
 
         all_loss_cls = loss_cls[left_inds].sum() / (num_total_samples - num_compensate)
         all_loss_bbox = loss_bbox[left_inds].sum() / (num_total_samples - num_compensate)
@@ -559,6 +556,9 @@ class HAMRetinaHead(AnchorHead):
                 pos_decode_bbox_pred.detach(),
                 pos_bboxes,
                 is_aligned=True)
+
+            import pdb
+            pdb.set_trace()
 
             compensate_loss_cls = (score * loss_cls[compensate_inds]).sum() / num_compensate
             compensate_loss_bbox = loss_bbox[compensate_inds].sum() / num_compensate

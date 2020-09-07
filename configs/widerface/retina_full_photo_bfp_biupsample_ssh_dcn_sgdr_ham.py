@@ -144,7 +144,7 @@ model = dict(
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
-        type='HAMAssigner',
+        type='MaxIoUAssigner',
         pos_iou_thr=0.35,
         neg_iou_thr=0.35,
         min_pos_iou=0.35,
