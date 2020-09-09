@@ -116,7 +116,8 @@ def single_gpu_test(model,
             encoded_mask_results = encode_mask_results(mask_results)
             result = bbox_results, encoded_mask_results
 
-        write_txt(out_dir, filename, result)
+        if out_dir:
+            write_txt(out_dir, filename, result)
 
         batch_size = len(data['img_metas'][0].data)
         for _ in range(batch_size):
@@ -165,10 +166,10 @@ def main():
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
     cfg.model.pretrained = None
-    if cfg.model.get('neck'):
-        if cfg.model.neck.get('rfp_backbone'):
-            if cfg.model.neck.rfp_backbone.get('pretrained'):
-                cfg.model.neck.rfp_backbone.pretrained = None
+    # if cfg.model.get('neck'):
+    #     if cfg.model.neck.get('rfp_backbone'):
+    #         if cfg.model.neck.rfp_backbone.get('pretrained'):
+    #             cfg.model.neck.rfp_backbone.pretrained = None
     cfg.data.test.test_mode = True
 
     # init distributed env first, since logger depends on the dist info.

@@ -98,14 +98,6 @@ model = dict(
             # coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
         dict(
-            type='BFP',
-            in_channels=256,
-            num_levels=6,
-            refine_level=2,
-            refine_type='non_local',
-            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-            upsample_cfg=dict(mode='bilinear')),
-        dict(
             type='SSHC',
             in_channel=256,
             num_levels=6,
@@ -164,14 +156,14 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 421
+total_epochs = 301
 log_config = dict(interval=100)
 
 

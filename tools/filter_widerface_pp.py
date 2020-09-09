@@ -12,6 +12,7 @@ import tqdm
 import numpy as np
 import xml.etree.ElementTree as ET
 from scipy.io import loadmat
+import matplotlib.pyplot as plt
 
 
 def parse_args():
@@ -58,6 +59,8 @@ def parse_xml(xml_path, keep_index, gt_boxes):
 
     gt_boxes = filter(gt_boxes)
 
+    tmp_boxes = []
+
     for i in range(len(objs)):
 
         obj = objs[i]
@@ -78,9 +81,11 @@ def parse_xml(xml_path, keep_index, gt_boxes):
         assert np.sum(bbox == gt_box) == 4, (bbox, gt_box)
 
         if i + 1 in keep_index:
-            obj.find('difficult').text = '0'
+            tmp_boxes.append(gt_box)
 
-    tree.write(xml_path)
+    return tmp_boxes
+
+    # tree.write(xml_path)
 
 
 def _parse_xmls(ann_path):
@@ -119,12 +124,13 @@ def main():
 
     for setting_id in range(3):
         # different setting
+        keep_bboxes = []
 
         xxx[setting_id] = {}
 
         gt_list = setting_gts[setting_id]
         count_face = 0
-        # [hard, medium, easy]
+        # [easy, medium, hard]
         pbar = tqdm.tqdm(range(event_num))
         for i in pbar:
             pbar.set_description('Processing {}'.format(settings[setting_id]))
@@ -141,22 +147,90 @@ def main():
 
                 gt_boxes = gt_bbx_list[j][0].astype('float')
 
+                # gt_boxes = filter(gt_boxes)
+
                 keep_index = sub_gt_list[j][0]
+
                 xxx[setting_id][i][j] = keep_index.reshape(-1).tolist()
                 count_face += len(keep_index)
 
-                # parse_xml(xml_path, keep_index, gt_boxes)
+                keep_bbox = parse_xml(xml_path, keep_index, gt_boxes)
+
+                if len(keep_bbox) > 0:
+                    keep_bboxes.append(np.concatenate([keep_bbox]))
 
         print(count_face)
 
-    l1 = len(xxx[0])
-    for i in range(l1):
-        l2 = len(xxx[0][i])
-        for j in range(l2):
-            x = xxx[0][i][j]
-            for k in range(1, 3):
-                assert len(xxx[k][i][j]) == len(set(x + xxx[k][i][j])), (k, i, j, x, xxx[k][i][j])
-                x = xxx[k][i][j]
+        # import pdb
+        # pdb.set_trace()
+
+        keep_bboxes = np.concatenate(keep_bboxes)
+
+        # draw_img_hw(keep_bboxes[:, 3], keep_bboxes[:, 2])
+        # draw_ins_hw(keep_bboxes[:, 3], keep_bboxes[:, 2])
+        sarea = np.sqrt(keep_bboxes[:, 2] * keep_bboxes[:, 3])
+
+        # import pdb
+        # pdb.set_trace
+        area_ranges = [(0, 8), (8, 16), (16, 24), (24, 32), (32, 96), (96, 1000000)]
+        area_txt = ['0-8', '8-16', '16-24', '24-32', '32-96', '>96']
+        bins = [0, 0, 0, 0, 0, 0]
+        for k, (min_area, max_area) in enumerate(area_ranges):
+            bins[k] = ((sarea >= min_area) * (sarea < max_area)).sum()
+
+        plt.figure(setting_id)
+        x = np.arange(6)
+        for a, b in zip(x, bins):
+            plt.text(a, b + 0.05, '%.0f' % b, ha='center', va='bottom', fontsize=10)
+        plt.bar(area_txt, bins)
+
+        # draw_hist(keep_bboxes[:, 3])
+        print('w', np.min(keep_bboxes[:, 2]), np.mean(keep_bboxes[:, 2]))
+        print('h', np.min(keep_bboxes[:, 3]), np.mean(keep_bboxes[:, 3]))
+        print('a', np.min(sarea), np.mean(sarea))
+
+    plt.show()
+
+    # l1 = len(xxx[0])
+    # for i in range(l1):
+    #     l2 = len(xxx[0][i])
+    #     for j in range(l2):
+    #         x = xxx[0][i][j]
+    #         for k in range(1, 3):
+    #             assert len(xxx[k][i][j]) == len(set(x + xxx[k][i][j])), (k, i, j, x, xxx[k][i][j])
+    #             x = xxx[k][i][j]
+
+def draw_img_hw(img_hs, img_ws, **kargs):
+    img_hs = np.asarray(img_hs)
+    img_ws = np.asarray(img_ws)
+
+    plt.figure()
+    plt.scatter(img_ws, img_hs, **kargs)
+    plt.title('img(knife)')
+    plt.xlabel('width')
+    plt.ylabel('height')
+    plt.show()
+
+def draw_ins_hw(ins_hs, ins_ws, **kargs):
+    ins_hs = np.asarray(ins_hs)
+    ins_ws = np.asarray(ins_ws)
+
+    plt.figure()
+    plt.scatter(ins_ws, ins_hs, **kargs)
+    plt.title('instance(knife)')
+    plt.xlabel('width')
+    plt.ylabel('height')
+    plt.show()
+
+def draw_hist(ins_pixs, **kargs):
+    bins = min(int(len(ins_pixs) / 40), 60)
+
+    plt.figure()
+    plt.hist(ins_pixs, bins=bins, **kargs)
+    plt.title('instance')
+    plt.xlabel('area sqrt')
+    plt.show()
+
 
 if __name__ == '__main__':
     main()

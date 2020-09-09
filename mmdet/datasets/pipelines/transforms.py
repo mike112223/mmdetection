@@ -1235,6 +1235,7 @@ class RandomSquareCrop(object):
                 cw = int(scale * short_side)
                 ch = cw
 
+                # TODO +1
                 left = random.uniform(w - cw)
                 top = random.uniform(h - ch)
 
@@ -1245,6 +1246,7 @@ class RandomSquareCrop(object):
                 # only adjust boxes and instance masks when the gt is not empty
                 # adjust boxes
                 def is_center_of_bboxes_in_patch(boxes, patch):
+                    # TODO >=
                     center = (boxes[:, :2] + boxes[:, 2:]) / 2
                     mask = ((center[:, 0] > patch[0]) *
                             (center[:, 1] > patch[1]) *

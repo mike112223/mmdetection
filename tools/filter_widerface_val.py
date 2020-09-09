@@ -86,9 +86,10 @@ def parse_xml(xml_path, keep_index, gt_boxes):
 def _parse_xmls(ann_path):
 
     xml_paths = os.listdir(ann_path)
-    print(len(xml_paths))
+    # print(len(xml_paths))
 
     for xml_path in xml_paths:
+        print(xml_path)
         tree = ET.parse(os.path.join(ann_path, xml_path))
         root = tree.getroot()
         objs = root.findall('object')
@@ -115,7 +116,7 @@ def main():
     settings = ['easy', 'medium', 'hard']
     setting_gts = [easy_gt_list, medium_gt_list, hard_gt_list]
 
-    for setting_id in range(3):
+    for setting_id in range(0, 3):
         # different setting
         gt_list = setting_gts[setting_id]
         count_face = 0
