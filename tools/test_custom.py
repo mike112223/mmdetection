@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--out', help='output result file in pickle format')
+    parser.add_argument('--iou', type=float, default=0.5)
     parser.add_argument(
         '--fuse-conv-bn',
         action='store_true',
@@ -154,8 +155,10 @@ def main():
             dataset.format_results(outputs, **kwargs)
         if args.eval:
             # dataset.evaluate(outputs, args.eval, **kwargs)
-
-             dataset.evaluate(outputs, 'mAP', jsonfile_prefix=args.out, scale_ranges=[(0, 8), (8, 16), (16, 24), (24, 32), (32, 96), (96, 5000), (0, 5000)])
+            dataset.evaluate(outputs, 'mAP',
+                             jsonfile_prefix=args.out,
+                             scale_ranges=[(0, 8), (8, 16), (16, 24), (24, 32), (32, 96), (96, 5000), (0, 5000)],
+                             iou_thr=args.iou)
              # dataset.evaluate(outputs, 'mAP', scale_ranges=[(8, 10), (10, 12), (12, 14), (14, 16), (8, 16)])
 
 

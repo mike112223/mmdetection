@@ -14,6 +14,7 @@ class SSHC(nn.Module):
                  num_levels,
                  conv_cfg=None,
                  norm_cfg=None,
+                 dcn_cfg=None,
                  share=False):
         super(SSHC, self).__init__()
         assert in_channel % 2**2 == 0
@@ -22,6 +23,9 @@ class SSHC(nn.Module):
         self.num_levels = num_levels
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
+        assert dcn_cfg is None or isinstance(dcn_cfg, dict)
+        self.dcn_cfg = dcn_cfg
+        self.with_dcn = True if dcn_cfg is not None else False
         self.share = share
 
         self.level_ssh_convs = nn.ModuleList()
@@ -67,6 +71,16 @@ class SSHC(nn.Module):
 
             self.level_ssh_convs.append(ssh_convs)
 
+        if self.with_dcn:
+            self.dcn = ConvModule(
+                self.in_channel,
+                self.in_channel,
+                3,
+                padding=1,
+                conv_cfg=self.dcn_cfg,
+                norm_cfg=self.norm_cfg,
+                act_cfg=act_cfg)
+
     def init_weights(self):
         """Initialize the weights of FPN module."""
         for m in self.modules():
@@ -95,6 +109,10 @@ class SSHC(nn.Module):
                 x_7_2 = self.level_ssh_convs[i][3](x_5_1)
                 x_7 = self.level_ssh_convs[i][4](x_7_2)
             out = F.relu(torch.cat([x_3, x_5, x_7], dim=1))
+
+            if self.with_dcn:
+                out = self.dcn(out)
+
             outs.append(out)
 
         return tuple(outs)

@@ -12,11 +12,11 @@ train_pipeline = [
         contrast_range=(0.5, 1.5),
         saturation_range=(0.5, 1.5),
         hue_delta=18),
-    dict(type='Albu',
-         transforms=[
-             dict(type='Rotate',
-                  limit=10)],
-         update_pad_shape=True),
+    # dict(type='Albu',
+    #      transforms=[
+    #          dict(type='Rotate',
+    #               limit=10)],
+    #      update_pad_shape=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
@@ -83,8 +83,8 @@ model = dict(
         out_indices=(0, 1, 2, 3),
         norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
         norm_eval=False,
-        dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
-        stage_with_dcn=(False, False, True, True),
+        # dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
+        # stage_with_dcn=(False, False, True, True),
         style='pytorch'),
     neck=[
         dict(
@@ -97,23 +97,15 @@ model = dict(
             norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
             # coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
-        dict(
-            type='BFP',
-            in_channels=256,
-            num_levels=6,
-            refine_level=2,
-            refine_type='non_local',
-            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-            upsample_cfg=dict(mode='bilinear')),
-        dict(
-            type='SSHC',
-            in_channel=256,
-            num_levels=6,
-            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-            share=True)
+        # dict(
+        #     type='SSHC',
+        #     in_channel=256,
+        #     num_levels=6,
+        #     norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
+        #     share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='RetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -151,11 +143,11 @@ train_cfg = dict(
     pos_weight=-1,
     debug=False)
 test_cfg = dict(
-    nms_pre=3000,
+    nms_pre=10000,
     min_bbox_size=0,
     score_thr=0.02,
     nms=dict(type='nms', iou_threshold=0.4),
-    max_per_img=800)
+    max_per_img=80000)
 
 
 # optimizer
@@ -164,14 +156,14 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 601
+total_epochs = 301
 log_config = dict(interval=100)
 
 
