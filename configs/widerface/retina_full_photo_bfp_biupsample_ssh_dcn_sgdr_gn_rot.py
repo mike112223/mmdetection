@@ -151,11 +151,11 @@ train_cfg = dict(
     pos_weight=-1,
     debug=False)
 test_cfg = dict(
-    nms_pre=3000,
+    nms_pre=10000,
     min_bbox_size=0,
     score_thr=0.02,
     nms=dict(type='nms', iou_threshold=0.4),
-    max_per_img=800)
+    max_per_img=80000)
 
 
 # optimizer
@@ -164,14 +164,18 @@ optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineRestart',
-    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
-    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    periods=[30, 30, 30, 30, 30, 30, 30, 30, 30, 30,
+             30, 30, 30, 30, 30, 30, 30, 30, 30, 30,
+             30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    restart_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 601
+total_epochs = 901
 log_config = dict(interval=100)
 
 

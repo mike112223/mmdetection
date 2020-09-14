@@ -378,6 +378,29 @@ class CustomDataset(Dataset):
         result_files = self.results2json(results, jsonfile_prefix)
         return result_files, tmp_dir
 
+    def iou_aware(self, results):
+        annotations = [self.get_ann_info(i) for i in range(len(self))]
+
+        for i, result in enumerate(results):
+
+            dts = torch.from_numpy(result[0][:, :4])
+            scores = result[0][:, 4]
+
+            gts = torch.from_numpy(annotations[i]['bboxes'])
+
+            if len(dts) == 0 or len(gts) == 0:
+                continue
+
+            overlaps = bbox_overlaps(dts, gts).numpy()
+
+            max_ious = overlaps.max(axis=1)
+
+            scores *= max_ious
+
+            results[i][0][:, 4] = scores
+
+        return results
+
     def evaluate(self,
                  results,
                  metric='mAP',
@@ -404,6 +427,8 @@ class CustomDataset(Dataset):
         """
         if jsonfile_prefix is not None:
             result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
+
+        # results = self.iou_aware(results)
 
         if not isinstance(metric, str):
             assert len(metric) == 1
