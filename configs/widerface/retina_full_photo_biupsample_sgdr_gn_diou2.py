@@ -97,12 +97,6 @@ model = dict(
             norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
             # coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
-        dict(
-            type='SSHC',
-            in_channel=256,
-            num_levels=6,
-            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-            share=True)
     ],
     bbox_head=dict(
         type='RetinaHead',

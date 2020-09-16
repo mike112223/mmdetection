@@ -12,11 +12,11 @@ train_pipeline = [
         contrast_range=(0.5, 1.5),
         saturation_range=(0.5, 1.5),
         hue_delta=18),
-    dict(type='Albu',
-         transforms=[
-             dict(type='Rotate',
-                  limit=10)],
-         update_pad_shape=True),
+    # dict(type='Albu',
+    #      transforms=[
+    #          dict(type='Rotate',
+    #               limit=10)],
+    #      update_pad_shape=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
@@ -83,8 +83,8 @@ model = dict(
         out_indices=(0, 1, 2, 3),
         norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
         norm_eval=False,
-        dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
-        stage_with_dcn=(False, False, True, True),
+        # dcn=dict(type='DCN', deform_groups=1, fallback_on_stride=False),
+        # stage_with_dcn=(False, False, True, True),
         style='pytorch'),
     neck=[
         dict(
@@ -98,14 +98,6 @@ model = dict(
             # coord_cfg=dict(with_r=False),
             upsample_cfg=dict(mode='bilinear')),
         dict(
-            type='BFP',
-            in_channels=256,
-            num_levels=6,
-            refine_level=2,
-            refine_type='non_local',
-            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-            upsample_cfg=dict(mode='bilinear')),
-        dict(
             type='SSHC',
             in_channel=256,
             num_levels=6,
@@ -113,7 +105,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='IouBalancedRetinaHead',
+        type='IouAwareRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -131,13 +123,19 @@ model = dict(
             type='DeltaXYWHBBoxCoder',
             target_means=[.0, .0, .0, .0],
             target_stds=[0.1, 0.1, 0.2, 0.2]),
+        detach=True,
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
+        reg_decoded_bbox=True,
+        loss_bbox=dict(type='DIoULoss', loss_weight=2.0),
+        loss_iou=dict(
+            type='CrossEntropyLoss',
+            use_sigmoid=True,
+            loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -151,11 +149,11 @@ train_cfg = dict(
     pos_weight=-1,
     debug=False)
 test_cfg = dict(
-    nms_pre=3000,
+    nms_pre=10000,
     min_bbox_size=0,
     score_thr=0.02,
     nms=dict(type='nms', iou_threshold=0.4),
-    max_per_img=800)
+    max_per_img=80000)
 
 
 # optimizer
@@ -178,7 +176,6 @@ lr_config = dict(
 total_epochs = 901
 log_config = dict(interval=100)
 
-
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -190,6 +187,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_211.pth'
 resume_from = None
 workflow = [('train', 1)]

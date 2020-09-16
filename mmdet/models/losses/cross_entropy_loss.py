@@ -79,6 +79,12 @@ def binary_cross_entropy(pred,
     if pred.dim() != label.dim():
         label, weight = _expand_binary_labels(label, weight, pred.size(-1))
 
+    # print('=========')
+    # print(weight.sum())
+    # print('pred', pred[weight.long() == 1])
+    # print('label', label[weight.long() == 1])
+    # print(avg_factor)
+
     # weighted element-wise losses
     if weight is not None:
         weight = weight.float()
