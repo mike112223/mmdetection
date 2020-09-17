@@ -105,7 +105,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='RetinaHead',
+        type='AnaRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -129,7 +129,8 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
+        reg_decoded_bbox=True,
+        loss_bbox=dict(type='DIoULoss', loss_weight=2.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -151,7 +152,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.00375, momentum=0.9, weight_decay=5e-4)
+optimizer = dict(type='SGD', lr=0.0, weight_decay=0)
 optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
@@ -167,7 +168,7 @@ lr_config = dict(
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 901
+total_epochs = 1
 log_config = dict(interval=100)
 
 
@@ -182,6 +183,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_211.pth'
 resume_from = None
 workflow = [('train', 1)]

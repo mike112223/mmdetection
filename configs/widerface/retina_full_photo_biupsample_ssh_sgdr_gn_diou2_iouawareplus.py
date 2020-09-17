@@ -105,7 +105,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='RetinaHead',
+        type='IouAwarePlusRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -123,13 +123,18 @@ model = dict(
             type='DeltaXYWHBBoxCoder',
             target_means=[.0, .0, .0, .0],
             target_stds=[0.1, 0.1, 0.2, 0.2]),
+        detach=True,
         loss_cls=dict(
-            type='FocalLoss',
+            type='QualityFocalLoss',
             use_sigmoid=True,
-            gamma=2.0,
-            alpha=0.25,
+            beta=2.0,
             loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', loss_weight=1.0)))
+        reg_decoded_bbox=True,
+        loss_bbox=dict(type='DIoULoss', loss_weight=2.0),
+        loss_iou=dict(
+            type='CrossEntropyLoss',
+            use_sigmoid=True,
+            loss_weight=1.0)))
 # training and testing settings
 train_cfg = dict(
     assigner=dict(
@@ -170,7 +175,6 @@ lr_config = dict(
 total_epochs = 901
 log_config = dict(interval=100)
 
-
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -182,6 +186,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_211.pth'
 resume_from = None
 workflow = [('train', 1)]
