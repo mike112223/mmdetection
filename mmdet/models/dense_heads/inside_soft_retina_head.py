@@ -1,16 +1,17 @@
+
 import torch
 import torch.nn as nn
-from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
+from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init, constant_init
 
-from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
-                        unmap, bbox_overlaps, force_fp32)
-from .anchor_head import AnchorHead
 from ..builder import HEADS
 from ..utils import CoordLayer
+from .anchor_head import AnchorHead
+from mmdet.core import (images_to_levels, multi_apply,
+                        bbox_overlaps, force_fp32)
 
 
 @HEADS.register_module()
-class AnaRetinaHead(AnchorHead):
+class InsideSoftRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -19,7 +20,7 @@ class AnaRetinaHead(AnchorHead):
 
     Example:
         >>> import torch
-        >>> self = AnaRetinaHead(11, 7)
+        >>> self = RetinaHead(11, 7)
         >>> x = torch.rand(1, 7, 32, 32)
         >>> cls_score, bbox_pred = self.forward_single(x)
         >>> # Each anchor predicts a score for each class except background
@@ -41,15 +42,26 @@ class AnaRetinaHead(AnchorHead):
                      scales_per_octave=3,
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
+                 detach=True,
                  coord_cfg=None,
-                 nms=False,
+                 custom_init=None,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
+        self.detach = detach
         self.coord_cfg = coord_cfg
+        self.custom_init = custom_init
 
-        super(AnaRetinaHead, self).__init__(
+        if 'train_cfg' in kwargs:
+            if hasattr(kwargs['train_cfg'], 'assigner'):
+                self.gpu_assign_thr = kwargs['train_cfg']['assigner'].get('gpu_assign_thr', 1e6)
+            else:
+                self.gpu_assign_thr = 1e6
+        else:
+            self.gpu_assign_thr = 1e6
+
+        super(InsideSoftRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -57,10 +69,6 @@ class AnaRetinaHead(AnchorHead):
 
         if self.coord_cfg is not None:
             self.coord = CoordLayer(**self.coord_cfg)
-
-        self.results = {'pos_scores': [], 'neg_scores': [],
-                        'pos_ious': [], 'neg_ious': [],
-                        'in_gt': []}
 
     def _init_layers(self):
         """Initialize layers of the head."""
@@ -102,6 +110,9 @@ class AnaRetinaHead(AnchorHead):
         self.retina_reg = nn.Conv2d(
             self.feat_channels, self.num_anchors * 4, 3, padding=1)
 
+        # import pdb
+        # pdb.set_trace()
+
     def init_weights(self):
         """Initialize weights of the head."""
         for m in self.cls_convs:
@@ -110,7 +121,7 @@ class AnaRetinaHead(AnchorHead):
             normal_init(m.conv, std=0.01)
         bias_cls = bias_init_with_prob(0.01)
         normal_init(self.retina_cls, std=0.01, bias=bias_cls)
-        normal_init(self.retina_reg, std=0.01)
+        constant_init(self.retina_reg, 0.)
 
     def forward_single(self, x):
         """Forward feature of a single scale level.
@@ -165,13 +176,10 @@ class AnaRetinaHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
 
-        # import pdb
-        # pdb.set_trace()
-
+        scores = []
         for i in range(len(gt_bboxes)):
-
-            _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
             _label = labels[i]
+            score = label_weights.new_zeros(_label.shape)
 
             _gt_bbox = gt_bboxes[i]
             if len(_gt_bbox) == 0:
@@ -186,7 +194,7 @@ class AnaRetinaHead(AnchorHead):
 
             bg_class_ind = self.num_classes
             _pos_inds = ((_label >= 0) & (_label < bg_class_ind)).nonzero().squeeze(1)
-            _neg_inds = ((_label >= 0) & (_label == bg_class_ind)).nonzero().squeeze(1)
+            # _neg_inds = ((_label >= 0) & (_label == bg_class_ind)).nonzero().squeeze(1)
 
             _bbox_pred = self.bbox_coder.decode(_anchor, _bbox_pred)
 
@@ -198,7 +206,7 @@ class AnaRetinaHead(AnchorHead):
             # import pdb
             # pdb.set_trace()
 
-            if len(_gt_bbox) > 100:
+            if len(_gt_bbox) > self.gpu_assign_thr:
                 device = _gt_bbox
                 _gt_bbox = _gt_bbox.cpu()
                 _bbox_pred = _bbox_pred.cpu()
@@ -206,10 +214,16 @@ class AnaRetinaHead(AnchorHead):
             ious = bbox_overlaps(
                 _bbox_pred.detach(),
                 _gt_bbox)
-            if len(_gt_bbox) > 100:
-                _gt_bbox = _gt_bbox.to(device)
 
             max_ious, assigned_gt_ind = ious.max(axis=1)
+            if len(_gt_bbox) > self.gpu_assign_thr:
+                _gt_bbox = _gt_bbox.to(device)
+                # import pdb
+                # pdb.set_trace()
+                assigned_gt_ind = assigned_gt_ind.to(device).long()
+                max_ious = max_ious.to(device)
+
+            # print(assigned_gt_ind)
 
             _gt_bboxes = _gt_bbox[assigned_gt_ind]
             x1 = _center[:, 0] > _gt_bboxes[:, 0]
@@ -217,15 +231,17 @@ class AnaRetinaHead(AnchorHead):
             y1 = _center[:, 1] > _gt_bboxes[:, 1]
             y2 = _center[:, 1] < _gt_bboxes[:, 3]
 
-            mask = _cls_score[_neg_inds] > 0.02
+            score[x1 * y1 * x2 * y2] = max_ious[x1 * y1 * x2 * y2]
+            labels[i][x1 * y1 * x2 * y2] = 0
+            if len(_pos_inds) > 0:
+                score[_pos_inds] = pos_ious
 
-            self.results['pos_ious'].extend(pos_ious.cpu().numpy().tolist())
-            self.results['neg_ious'].extend(max_ious[_neg_inds][mask].cpu().numpy().tolist())
+            scores.append(score)
 
-            self.results['pos_scores'].extend(_cls_score[_pos_inds].detach().cpu().numpy().tolist())
-            self.results['neg_scores'].extend(_cls_score[_neg_inds][mask].detach().cpu().numpy().tolist())
+        # import pdb
+        # pdb.set_trace()
 
-            self.results['in_gt'].extend((x1 * x2 * y1 * y2)[_neg_inds][mask].cpu().int().numpy().tolist())
+        scores = torch.cat(scores)
 
         anchors = anchors.reshape(-1, 4)
         labels = labels.reshape(-1)
@@ -237,14 +253,6 @@ class AnaRetinaHead(AnchorHead):
         bbox_weights = bbox_weights.reshape(-1, 4)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
 
-        ious = label_weights.new_zeros(labels.shape)
-
-        loss_cls = self.loss_cls(
-            cls_score,
-            labels,
-            label_weights,
-            avg_factor=num_total_samples)
-
         if self.reg_decoded_bbox:
             anchors = anchors.reshape(-1, 4)
             bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
@@ -255,11 +263,13 @@ class AnaRetinaHead(AnchorHead):
             bbox_weights,
             avg_factor=num_total_samples)
 
-        if not self.reg_decoded_bbox:
-            bbox_pred = self.bbox_coder.decode(anchors,
-                                               bbox_pred)
-            bbox_targets = self.bbox_coder.decode(anchors,
-                                                  bbox_targets)
+        # import pdb
+        # pdb.set_trace()
+
+        loss_cls = self.loss_cls(
+            cls_score, (labels, scores),
+            weight=label_weights,
+            avg_factor=num_total_samples)
 
         return loss_cls, loss_bbox
 

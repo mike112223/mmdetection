@@ -1,16 +1,16 @@
 import torch
 import torch.nn as nn
-from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
+from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init, constant_init
 
-from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
-                        unmap, bbox_overlaps, force_fp32)
+from mmdet.core import (images_to_levels, multi_apply,
+                        bbox_overlaps, force_fp32)
 from .anchor_head import AnchorHead
-from ..builder import HEADS
+from ..builder import HEADS, build_loss
 from ..utils import CoordLayer
 
 
 @HEADS.register_module()
-class AnaRetinaHead(AnchorHead):
+class AnaIoURetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -41,19 +41,26 @@ class AnaRetinaHead(AnchorHead):
                      scales_per_octave=3,
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
+                 loss_iou=dict(
+                     type='CrossEntropyLoss',
+                     use_sigmoid=True,
+                     loss_weight=1.0),
+                 detach=True,
                  coord_cfg=None,
-                 nms=False,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.coord_cfg = coord_cfg
 
-        super(AnaRetinaHead, self).__init__(
+        super(AnaIoURetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
             **kwargs)
+
+        self.loss_iou = build_loss(loss_iou)
+        self.detach = detach
 
         if self.coord_cfg is not None:
             self.coord = CoordLayer(**self.coord_cfg)
@@ -101,6 +108,11 @@ class AnaRetinaHead(AnchorHead):
             padding=1)
         self.retina_reg = nn.Conv2d(
             self.feat_channels, self.num_anchors * 4, 3, padding=1)
+        self.retina_iou = nn.Conv2d(
+            self.feat_channels, self.num_anchors, 3, padding=1)
+
+        # import pdb
+        # pdb.set_trace()
 
     def init_weights(self):
         """Initialize weights of the head."""
@@ -110,7 +122,8 @@ class AnaRetinaHead(AnchorHead):
             normal_init(m.conv, std=0.01)
         bias_cls = bias_init_with_prob(0.01)
         normal_init(self.retina_cls, std=0.01, bias=bias_cls)
-        normal_init(self.retina_reg, std=0.01)
+        constant_init(self.retina_reg, 0.)
+        constant_init(self.retina_iou, 0.)
 
     def forward_single(self, x):
         """Forward feature of a single scale level.
@@ -136,9 +149,10 @@ class AnaRetinaHead(AnchorHead):
             reg_feat = reg_conv(reg_feat)
         cls_score = self.retina_cls(cls_feat)
         bbox_pred = self.retina_reg(reg_feat)
-        return cls_score, bbox_pred
+        iou_pred = self.retina_iou(reg_feat)
+        return cls_score, bbox_pred, iou_pred
 
-    def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
+    def loss_single(self, cls_score, bbox_pred, iou_pred, anchors, labels, label_weights,
                     bbox_targets, bbox_weights, gt_bboxes, num_total_samples):
         """Compute loss of a single scale level.
 
@@ -165,12 +179,11 @@ class AnaRetinaHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
 
-        # import pdb
-        # pdb.set_trace()
-
         for i in range(len(gt_bboxes)):
 
             _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
+            _iou_pred = iou_pred[i].permute(1, 2, 0).reshape(-1).sigmoid()
+            _cls_score = _cls_score * _iou_pred
             _label = labels[i]
 
             _gt_bbox = gt_bboxes[i]
@@ -267,6 +280,7 @@ class AnaRetinaHead(AnchorHead):
     def loss(self,
              cls_scores,
              bbox_preds,
+             iou_preds,
              gt_bboxes,
              gt_labels,
              img_metas,
@@ -325,6 +339,7 @@ class AnaRetinaHead(AnchorHead):
             self.loss_single,
             cls_scores,
             bbox_preds,
+            iou_preds,
             all_anchor_list,
             labels_list,
             label_weights_list,

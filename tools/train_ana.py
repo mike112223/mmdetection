@@ -20,6 +20,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
+    parser.add_argument('--out', help='the dir to save logs and models')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
     parser.add_argument(
@@ -151,7 +152,7 @@ def main():
     # import pdb
     # pdb.set_trace()
 
-    mmcv.dump(model.bbox_head.results, 'result.json')
+    mmcv.dump(model.bbox_head.results, args.out)
 
 
 if __name__ == '__main__':
