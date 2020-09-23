@@ -96,13 +96,15 @@ class CenterRegionAssigner(BaseAssigner):
                  min_pos_iof=1e-2,
                  ignore_gt_scale=0.5,
                  foreground_dominate=False,
-                 iou_calculator=dict(type='BboxOverlaps2D')):
+                 iou_calculator=dict(type='BboxOverlaps2D'),
+                 gpu_assign_thr=-1):
         self.pos_scale = pos_scale
         self.neg_scale = neg_scale
         self.min_pos_iof = min_pos_iof
         self.ignore_gt_scale = ignore_gt_scale
         self.foreground_dominate = foreground_dominate
         self.iou_calculator = build_iou_calculator(iou_calculator)
+        self.gpu_assign_thr = gpu_assign_thr
 
     def get_gt_priorities(self, gt_bboxes):
         """Get gt priorities according to their areas.
@@ -170,6 +172,9 @@ class CenterRegionAssigner(BaseAssigner):
         #      background label, but set the loss weight of its corresponding
         #      gt to zero.
         assert bboxes.size(1) == 4, 'bboxes must have size of 4'
+        assign_on_cpu = True if (self.gpu_assign_thr > 0) and (
+            gt_bboxes.shape[0] > self.gpu_assign_thr) else False
+
         # 1. Find core positive and shadow region of every gt
         gt_core = scale_boxes(gt_bboxes, self.pos_scale)
         gt_shadow = scale_boxes(gt_bboxes, self.neg_scale)
@@ -180,6 +185,14 @@ class CenterRegionAssigner(BaseAssigner):
         is_bbox_in_gt = is_located_in(bbox_centers, gt_bboxes)
         # Only calculate bbox and gt_core IoF. This enables small prior bboxes
         #   to match large gts
+
+        if assign_on_cpu:
+            device = gt_bboxes.device
+            bboxes = bboxes.cpu()
+            is_bbox_in_gt = is_bbox_in_gt.cpu()
+            gt_core = gt_core.cpu()
+            gt_shadow = gt_shadow.cpu()
+
         bbox_and_gt_core_overlaps = self.iou_calculator(
             bboxes, gt_core, mode='iof')
         # The center point of effective priors should be within the gt box
@@ -189,6 +202,15 @@ class CenterRegionAssigner(BaseAssigner):
         is_bbox_in_gt_shadow = (
             self.iou_calculator(bboxes, gt_shadow, mode='iof') >
             self.min_pos_iof)
+
+        if assign_on_cpu:
+            bboxes = bboxes.to(device)
+            is_bbox_in_gt = is_bbox_in_gt.to(device)
+            gt_core = gt_core.to(device)
+            gt_shadow = gt_shadow.to(device)
+            is_bbox_in_gt_core = is_bbox_in_gt_core.to(device)
+            is_bbox_in_gt_shadow = is_bbox_in_gt_shadow.to(device)
+
         # Rule out center effective positive pixels
         is_bbox_in_gt_shadow &= (~is_bbox_in_gt_core)
 

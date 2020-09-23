@@ -11,7 +11,7 @@ from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
 
 
 @HEADS.register_module()
-class InsideSoftRetinaHead(AnchorHead):
+class XInsideSoftRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -43,7 +43,6 @@ class InsideSoftRetinaHead(AnchorHead):
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
                  detach=True,
-                 recall_reg=False,
                  coord_cfg=None,
                  custom_init=None,
                  **kwargs):
@@ -51,14 +50,13 @@ class InsideSoftRetinaHead(AnchorHead):
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.detach = detach
-        self.recall_reg = recall_reg
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
 
         if 'train_cfg' in kwargs:
             self.center_assigner = build_assigner(kwargs['train_cfg'].center_assigner)
 
-        super(InsideSoftRetinaHead, self).__init__(
+        super(XInsideSoftRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -147,7 +145,6 @@ class InsideSoftRetinaHead(AnchorHead):
         return cls_score, bbox_pred
 
     def _get_targets_single(self,
-                            flat_bbox_preds,
                             flat_anchors,
                             valid_flags,
                             gt_bboxes,
@@ -193,14 +190,18 @@ class InsideSoftRetinaHead(AnchorHead):
             return (None, ) * 7
         # assign gt and sample anchors
         anchors = flat_anchors[inside_flags, :]
-        bbox_preds = flat_bbox_preds[inside_flags, :]
-        proposals = self.bbox_coder.decode(anchors, bbox_preds).detach()
 
         assign_result = self.assigner.assign(
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
         sampling_result = self.sampler.sample(assign_result, anchors,
                                               gt_bboxes)
+
+        center_assign_result = self.cetner_assigner.assign(
+            anchors, gt_bboxes, gt_bboxes_ignore,
+            None if self.sampling else gt_labels)
+        center_sampling_result = self.sampler.sample(center_assign_result, anchors,
+                                                     gt_bboxes)
 
         num_valid_anchors = anchors.shape[0]
         bbox_targets = torch.zeros_like(anchors)
@@ -209,72 +210,35 @@ class InsideSoftRetinaHead(AnchorHead):
                                   self.background_label,
                                   dtype=torch.long)
         label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
-        recall_flag = torch.zeros_like(labels)
 
         pos_inds = sampling_result.pos_inds
         neg_inds = sampling_result.neg_inds
-
-        center_assign_result = self.center_assigner.assign(
-            anchors, proposals, gt_bboxes, None if self.sampling else gt_labels)
-        center_pos_inds = center_assign_result.gt_inds.nonzero().reshape(-1)
-        mask = anchors.new_zeros(num_valid_anchors)
-        mask[center_pos_inds] = 1
-        mask[pos_inds] = 0
-        center_pos_inds = mask.nonzero().reshape(-1)
-        center_assign_result.gt_inds[~mask.bool()] = 0
-        center_sampling_result = self.sampler.sample(center_assign_result, proposals,
-                                                     gt_bboxes)
-
         center_pos_inds = center_sampling_result.pos_inds
         center_neg_inds = center_sampling_result.neg_inds
 
-        # print(len(center_pos_inds))
+        all_pos_inds = torch.cat([pos_inds, center_pos_inds]).unique()
 
-        if len(center_pos_inds) > 0:
+        if len(all_pos_inds) > 0:
             if not self.reg_decoded_bbox:
                 center_bbox_targets = self.bbox_coder.encode(
                     center_sampling_result.pos_bboxes, center_sampling_result.pos_gt_bboxes)
                 # print(center_bbox_targets)
             else:
                 center_bbox_targets = center_sampling_result.pos_gt_bboxes
-            bbox_targets[center_pos_inds, :] = center_bbox_targets
-            recall_flag[center_pos_inds] = 1
-            if self.recall_reg:
-                bbox_weights[pos_inds, :] = 1.0
+            bbox_targets[all_pos_inds, :] = center_bbox_targets
             if gt_labels is None:
                 # only rpn gives gt_labels as None, this time FG is 1
-                labels[center_pos_inds] = 1
+                labels[all_pos_inds] = 1
             else:
-                labels[center_pos_inds] = gt_labels[
+                labels[all_pos_inds] = gt_labels[
                     center_sampling_result.pos_assigned_gt_inds]
             if self.train_cfg.pos_weight <= 0:
-                label_weights[center_pos_inds] = 1.0
+                label_weights[all_pos_inds] = 1.0
             else:
-                label_weights[center_pos_inds] = self.train_cfg.pos_weight
-
-        if len(center_neg_inds) > 0:
-            label_weights[center_neg_inds] = 1.0
+                label_weights[all_pos_inds] = self.train_cfg.pos_weight
 
         if len(pos_inds) > 0:
-            if not self.reg_decoded_bbox:
-                pos_bbox_targets = self.bbox_coder.encode(
-                    sampling_result.pos_bboxes, sampling_result.pos_gt_bboxes)
-                # print(pos_bbox_targets)
-            else:
-                pos_bbox_targets = sampling_result.pos_gt_bboxes
-            bbox_targets[pos_inds, :] = pos_bbox_targets
             bbox_weights[pos_inds, :] = 1.0
-            if gt_labels is None:
-                # only rpn gives gt_labels as None, this time FG is 1
-                labels[pos_inds] = 1
-            else:
-                labels[pos_inds] = gt_labels[
-                    sampling_result.pos_assigned_gt_inds]
-            if self.train_cfg.pos_weight <= 0:
-                label_weights[pos_inds] = 1.0
-            else:
-                label_weights[pos_inds] = self.train_cfg.pos_weight
-
         if len(neg_inds) > 0:
             label_weights[neg_inds] = 1.0
 
@@ -286,18 +250,15 @@ class InsideSoftRetinaHead(AnchorHead):
                 num_total_anchors,
                 inside_flags,
                 fill=self.background_label)  # fill bg label
-
             label_weights = unmap(label_weights, num_total_anchors,
                                   inside_flags)
             bbox_targets = unmap(bbox_targets, num_total_anchors, inside_flags)
             bbox_weights = unmap(bbox_weights, num_total_anchors, inside_flags)
-            recall_flag = unmap(recall_flag, num_total_anchors, inside_flags)
 
         return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
-                neg_inds, center_pos_inds, center_neg_inds, recall_flag, sampling_result)
+                neg_inds, all_pos_inds, center_neg_inds, sampling_result)
 
     def get_targets(self,
-                    bbox_pred_list,
                     anchor_list,
                     valid_flag_list,
                     gt_bboxes_list,
@@ -345,7 +306,6 @@ class InsideSoftRetinaHead(AnchorHead):
                 to properties at each feature map (i.e. having HxW dimension).
                 The results will be concatenated after the end
         """
-
         num_imgs = len(img_metas)
         assert len(anchor_list) == len(valid_flag_list) == num_imgs
 
@@ -354,16 +314,10 @@ class InsideSoftRetinaHead(AnchorHead):
         # concat all level anchors to a single tensor
         concat_anchor_list = []
         concat_valid_flag_list = []
-        concat_bbox_pred_list = []
         for i in range(num_imgs):
             assert len(anchor_list[i]) == len(valid_flag_list[i])
             concat_anchor_list.append(torch.cat(anchor_list[i]))
             concat_valid_flag_list.append(torch.cat(valid_flag_list[i]))
-
-            bbox_pred_pre_img = []
-            for j in range(len(bbox_pred_list)):
-                bbox_pred_pre_img.append(bbox_pred_list[j][i].reshape(-1, 4))
-            concat_bbox_pred_list.append(torch.cat(bbox_pred_pre_img))
 
         # compute targets for each image
         if gt_bboxes_ignore_list is None:
@@ -372,7 +326,6 @@ class InsideSoftRetinaHead(AnchorHead):
             gt_labels_list = [None for _ in range(num_imgs)]
         results = multi_apply(
             self._get_targets_single,
-            concat_bbox_pred_list,
             concat_anchor_list,
             concat_valid_flag_list,
             gt_bboxes_list,
@@ -382,18 +335,18 @@ class InsideSoftRetinaHead(AnchorHead):
             label_channels=label_channels,
             unmap_outputs=unmap_outputs)
         (all_labels, all_label_weights, all_bbox_targets, all_bbox_weights,
-         pos_inds_list, neg_inds_list, recall_pos_inds_list,
-         recall_neg_inds_list, all_recall_flags, sampling_results_list) = results[:10]
-        rest_results = list(results[10:])  # user-added return values
+         reg_pos_inds_list, reg_neg_inds_list, cls_pos_inds_list,
+         cls_neg_inds_list, sampling_results_list) = results[:9]
+        rest_results = list(results[9:])  # user-added return values
         # no valid anchors
         if any([labels is None for labels in all_labels]):
             return None
         # sampled anchors of all images
-        num_total_pos = sum([max(inds.numel(), 1) for inds in pos_inds_list])
-        num_total_neg = sum([max(inds.numel(), 1) for inds in neg_inds_list])
+        reg_num_total_pos = sum([max(inds.numel(), 1) for inds in reg_pos_inds_list])
+        reg_num_total_neg = sum([max(inds.numel(), 1) for inds in reg_neg_inds_list])
 
-        recall_num_total_pos = sum([max(inds.numel(), 0) for inds in recall_pos_inds_list])
-        recall_num_total_neg = sum([max(inds.numel(), 0) for inds in recall_neg_inds_list])
+        cls_num_total_pos = sum([max(inds.numel(), 1) for inds in cls_pos_inds_list])
+        cls_num_total_neg = sum([max(inds.numel(), 1) for inds in cls_neg_inds_list])
 
         # split targets to a list w.r.t. multiple levels
         labels_list = images_to_levels(all_labels, num_level_anchors)
@@ -403,12 +356,9 @@ class InsideSoftRetinaHead(AnchorHead):
                                              num_level_anchors)
         bbox_weights_list = images_to_levels(all_bbox_weights,
                                              num_level_anchors)
-        recall_flags_list = images_to_levels(all_recall_flags,
-                                             num_level_anchors)
-
         res = (labels_list, label_weights_list, bbox_targets_list,
-               bbox_weights_list, num_total_pos, num_total_neg,
-               recall_num_total_pos, recall_num_total_neg, recall_flags_list)
+               bbox_weights_list, reg_num_total_pos, reg_num_total_neg,
+               cls_num_total_pos, cls_num_total_neg)
         if return_sampling_results:
             res = res + (sampling_results_list, )
         for i, r in enumerate(rest_results):  # user-added return values
@@ -417,8 +367,7 @@ class InsideSoftRetinaHead(AnchorHead):
         return res + tuple(rest_results)
 
     def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
-                    bbox_targets, bbox_weights, recall_flags, num_total_samples,
-                    recall_num_total_samples):
+                    bbox_targets, bbox_weights, reg_num_total_samples, cls_num_total_samples):
         """Compute loss of a single scale level.
 
         Args:
@@ -444,7 +393,6 @@ class InsideSoftRetinaHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
         anchors = anchors.reshape(-1, 4)
-        recall_flags = recall_flags.reshape(-1)
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
         cls_score = cls_score.permute(0, 2, 3,
@@ -466,9 +414,7 @@ class InsideSoftRetinaHead(AnchorHead):
             bbox_pred,
             bbox_targets,
             bbox_weights,
-            avg_factor=num_total_samples)
-        # import pdb
-        # pdb.set_trace()
+            avg_factor=reg_num_total_samples)
 
         if len(pos_inds) > 0:
             # dx, dy, dw, dh
@@ -497,10 +443,13 @@ class InsideSoftRetinaHead(AnchorHead):
                 gt_bboxes,
                 is_aligned=True)
 
+        import pdb
+        pdb.set_trace()
+
         loss_cls = self.loss_cls(
             cls_score, (labels, score),
             weight=label_weights,
-            avg_factor=num_total_samples + recall_num_total_samples)
+            avg_factor=cls_num_total_samples)
 
         return loss_cls, loss_bbox
 
@@ -539,7 +488,6 @@ class InsideSoftRetinaHead(AnchorHead):
             featmap_sizes, img_metas, device=device)
         label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
         cls_reg_targets = self.get_targets(
-            bbox_preds,
             anchor_list,
             valid_flag_list,
             gt_bboxes,
@@ -550,12 +498,11 @@ class InsideSoftRetinaHead(AnchorHead):
         if cls_reg_targets is None:
             return None
         (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
-         num_total_pos, num_total_neg, recall_num_total_pos, recall_num_total_neg,
-         recall_flags_list) = cls_reg_targets
-        num_total_samples = (
-            num_total_pos + num_total_neg if self.sampling else num_total_pos)
-        recall_num_total_samples = (
-            recall_num_total_pos + recall_num_total_neg if self.sampling else recall_num_total_pos)
+         reg_num_total_pos, reg_num_total_neg, cls_num_total_pos, cls_num_total_neg) = cls_reg_targets
+        reg_num_total_samples = (
+            reg_num_total_pos + reg_num_total_neg if self.sampling else reg_num_total_pos)
+        cls_num_total_samples = (
+            cls_num_total_pos + cls_num_total_neg if self.sampling else cls_num_total_pos)
 
         # anchor number of multi levels
         num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]
@@ -566,8 +513,6 @@ class InsideSoftRetinaHead(AnchorHead):
         all_anchor_list = images_to_levels(concat_anchor_list,
                                            num_level_anchors)
 
-        # print('!!!', num_total_samples, recall_num_total_samples)
-
         losses_cls, losses_bbox = multi_apply(
             self.loss_single,
             cls_scores,
@@ -577,8 +522,7 @@ class InsideSoftRetinaHead(AnchorHead):
             label_weights_list,
             bbox_targets_list,
             bbox_weights_list,
-            recall_flags_list,
-            num_total_samples=num_total_samples,
-            recall_num_total_samples=recall_num_total_samples)
+            reg_num_total_samples=reg_num_total_samples,
+            cls_num_total_samples=cls_num_total_samples)
         # print(num_total_samples)
         return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)

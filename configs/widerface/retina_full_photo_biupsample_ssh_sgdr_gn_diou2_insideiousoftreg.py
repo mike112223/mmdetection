@@ -129,6 +129,7 @@ model = dict(
             beta=2.0,
             loss_weight=1.0),
         detach=True,
+        recall_reg=True,
         reg_decoded_bbox=True,
         loss_bbox=dict(type='DIoULoss', loss_weight=2.0)))
 # training and testing settings
