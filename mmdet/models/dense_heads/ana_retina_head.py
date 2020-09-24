@@ -60,7 +60,7 @@ class AnaRetinaHead(AnchorHead):
 
         self.results = {'pos_scores': [], 'neg_scores': [],
                         'pos_ious': [], 'neg_ious': [],
-                        'in_gt': []}
+                        'in_gt': [], 'in_pos_gt': []}
 
     def _init_layers(self):
         """Initialize layers of the head."""
@@ -226,6 +226,7 @@ class AnaRetinaHead(AnchorHead):
             self.results['neg_scores'].extend(_cls_score[_neg_inds][mask].detach().cpu().numpy().tolist())
 
             self.results['in_gt'].extend((x1 * x2 * y1 * y2)[_neg_inds][mask].cpu().int().numpy().tolist())
+            self.results['in_pos_gt'].extend((x1 * x2 * y1 * y2)[_pos_inds].cpu().int().numpy().tolist())
 
         anchors = anchors.reshape(-1, 4)
         labels = labels.reshape(-1)

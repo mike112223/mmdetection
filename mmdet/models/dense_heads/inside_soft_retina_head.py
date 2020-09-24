@@ -44,6 +44,7 @@ class InsideSoftRetinaHead(AnchorHead):
                      strides=[8, 16, 32, 64, 128]),
                  detach=True,
                  recall_reg=False,
+                 norm=-1,
                  coord_cfg=None,
                  custom_init=None,
                  **kwargs):
@@ -52,6 +53,7 @@ class InsideSoftRetinaHead(AnchorHead):
         self.norm_cfg = norm_cfg
         self.detach = detach
         self.recall_reg = recall_reg
+        self.norm = norm
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
 
@@ -443,6 +445,13 @@ class InsideSoftRetinaHead(AnchorHead):
         Returns:
             dict[str, Tensor]: A dictionary of loss components.
         """
+        if self.norm < 0:
+            avg_factor_reg = num_total_samples + recall_num_total_samples if self.recall_reg else num_total_samples
+            avg_factor_cls = num_total_samples + recall_num_total_samples
+        else:
+            avg_factor_reg = self.norm
+            avg_factor_cls = self.norm
+
         anchors = anchors.reshape(-1, 4)
         recall_flags = recall_flags.reshape(-1)
         labels = labels.reshape(-1)
@@ -466,7 +475,7 @@ class InsideSoftRetinaHead(AnchorHead):
             bbox_pred,
             bbox_targets,
             bbox_weights,
-            avg_factor=num_total_samples)
+            avg_factor=avg_factor_reg)
         # import pdb
         # pdb.set_trace()
 
@@ -500,7 +509,7 @@ class InsideSoftRetinaHead(AnchorHead):
         loss_cls = self.loss_cls(
             cls_score, (labels, score),
             weight=label_weights,
-            avg_factor=num_total_samples + recall_num_total_samples)
+            avg_factor=avg_factor_cls)
 
         return loss_cls, loss_bbox
 
