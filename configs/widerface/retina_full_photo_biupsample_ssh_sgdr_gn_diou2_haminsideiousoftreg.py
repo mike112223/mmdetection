@@ -105,7 +105,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='InsideSoftRetinaHead',
+        type='HamSoftRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,

@@ -353,7 +353,7 @@ class IouAwareHamRetinaHead(AnchorHead):
 
             bbox_pred_pre_img = []
             for j in range(len(bbox_pred_list)):
-                bbox_pred_pre_img.append(bbox_pred_list[j][i].reshape(-1, 4))
+                bbox_pred_pre_img.append(bbox_pred_list[j][i].permute(1, 2, 0).reshape(-1, 4))
             concat_bbox_pred_list.append(torch.cat(bbox_pred_pre_img))
 
         # compute targets for each image

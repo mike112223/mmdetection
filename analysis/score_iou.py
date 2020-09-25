@@ -17,6 +17,9 @@ neg_scores = np.asarray(results['neg_scores'])
 pos_scores = np.asarray(results['pos_scores'])
 
 in_gt = np.asarray(results['in_gt']).astype(np.bool)
+in_gt = np.asarray(results['in_pos_gt']).astype(np.bool)
+
+bins = 50
 
 plt.figure()
 plt.scatter(pos_scores, pos_ious, alpha=0.01)
@@ -71,6 +74,54 @@ plt.ylabel('scores')
 plt.show()
 
 fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+x, y = pos_scores, pos_ious
+x = x[~in_gt]
+y = y[~in_gt]
+bins = 50
+gap = 1 / bins
+
+hist, xedges, yedges = np.histogram2d(x, y, bins=bins, range=[[0, 1], [0, 1]])
+
+X, Y = np.meshgrid(xedges[:-1], yedges[:-1])
+surf = ax.plot_surface(X, Y, hist, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+
+# ax.set_zlim(-1.01, 1.01)
+ax.zaxis.set_major_locator(LinearLocator(10))
+# ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+fig.colorbar(surf, shrink=0.5, aspect=10)
+plt.title('pos iou-score distribution (outside)')
+plt.xlabel('ious')
+plt.ylabel('scores')
+plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+x, y = pos_scores, pos_ious
+x = x[in_gt]
+y = y[in_gt]
+bins = 50
+gap = 1 / bins
+
+hist, xedges, yedges = np.histogram2d(x, y, bins=bins, range=[[0, 1], [0, 1]])
+
+X, Y = np.meshgrid(xedges[:-1], yedges[:-1])
+surf = ax.plot_surface(X, Y, hist, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+
+# ax.set_zlim(-1.01, 1.01)
+ax.zaxis.set_major_locator(LinearLocator(10))
+# ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+fig.colorbar(surf, shrink=0.5, aspect=10)
+plt.title('pos iou-score distribution (inside)')
+plt.xlabel('ious')
+plt.ylabel('scores')
+plt.show()
+
+##### ===================
+
+fig = plt.figure()
 ax = fig.gca(projection='3d')
 bins = 50
 gap = 1 / bins
@@ -117,9 +168,6 @@ plt.title('neg iou-score distribution')
 ax.set_xlabel('ious')
 ax.set_ylabel('scores')
 plt.show()
-
-
-
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')

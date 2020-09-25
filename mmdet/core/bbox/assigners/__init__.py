@@ -8,9 +8,10 @@ from .point_assigner import PointAssigner
 from .unique_max_iou_assigner import UniqueMaxIoUAssigner
 from .ham_assigner import HAMAssigner
 from .prop_center_region_assigner import PropCenterRegionAssigner
+from .adaptive_prop_center_region_assigner import AdaptivePropCenterRegionAssigner
 
 __all__ = [
     'BaseAssigner', 'MaxIoUAssigner', 'ApproxMaxIoUAssigner', 'AssignResult',
     'PointAssigner', 'ATSSAssigner', 'CenterRegionAssigner', 'UniqueMaxIoUAssigner',
-    'HAMAssigner', 'PropCenterRegionAssigner'
+    'HAMAssigner', 'PropCenterRegionAssigner', 'AdaptivePropCenterRegionAssigner'
 ]

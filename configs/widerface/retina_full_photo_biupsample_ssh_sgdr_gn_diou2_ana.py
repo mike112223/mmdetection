@@ -183,6 +183,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_211.pth'
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2_iousoft/epoch_391.pth'
 resume_from = None
 workflow = [('train', 1)]

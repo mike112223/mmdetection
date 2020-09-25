@@ -3,15 +3,15 @@ import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init, constant_init
 
-from ..builder import HEADS
+from ..builder import HEADS, build_loss
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
-from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
-                        unmap, bbox_overlaps, build_assigner, force_fp32)
+from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
+                        multi_apply, unmap, bbox_overlaps, multiclass_nms)
 
 
 @HEADS.register_module()
-class InsideSoftRetinaHead(AnchorHead):
+class IouAwareHamRetinaHeadp(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -36,38 +36,46 @@ class InsideSoftRetinaHead(AnchorHead):
                  stacked_convs=4,
                  conv_cfg=None,
                  norm_cfg=None,
+                 recall_th=0.8,
+                 ignore_th=0.5,
                  anchor_generator=dict(
                      type='AnchorGenerator',
                      octave_base_scale=4,
                      scales_per_octave=3,
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
+                 loss_iou=dict(
+                     type='CrossEntropyLoss',
+                     use_sigmoid=True,
+                     loss_weight=1.0),
                  detach=True,
-                 recall_reg=False,
-                 norm=-1,
                  coord_cfg=None,
                  custom_init=None,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
-        self.detach = detach
-        self.recall_reg = recall_reg
-        self.norm = norm
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
+        self.recall_th = recall_th
+        self.ignore_th = ignore_th
 
-
-        self.infos = {'pos_num': 0, 'recall': 0}
-        # TODO
         if 'train_cfg' in kwargs:
-            self.center_assigner = build_assigner(kwargs['train_cfg'].center_assigner)
+            if hasattr(kwargs['train_cfg'], 'assigner'):
+                self.gpu_assign_thr = kwargs['train_cfg']['assigner'].get('gpu_assign_thr', 1e6)
+            else:
+                self.gpu_assign_thr = 1e6
+        else:
+            self.gpu_assign_thr = 1e6
 
-        super(InsideSoftRetinaHead, self).__init__(
+        super(IouAwareHamRetinaHeadp, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
             **kwargs)
+
+        self.loss_iou = build_loss(loss_iou)
+        self.detach = detach
 
         if self.coord_cfg is not None:
             self.coord = CoordLayer(**self.coord_cfg)
@@ -111,6 +119,8 @@ class InsideSoftRetinaHead(AnchorHead):
             padding=1)
         self.retina_reg = nn.Conv2d(
             self.feat_channels, self.num_anchors * 4, 3, padding=1)
+        self.retina_iou = nn.Conv2d(
+            self.feat_channels, self.num_anchors, 3, padding=1)
 
         # import pdb
         # pdb.set_trace()
@@ -124,6 +134,7 @@ class InsideSoftRetinaHead(AnchorHead):
         bias_cls = bias_init_with_prob(0.01)
         normal_init(self.retina_cls, std=0.01, bias=bias_cls)
         constant_init(self.retina_reg, 0.)
+        constant_init(self.retina_iou, 0.)
 
     def forward_single(self, x):
         """Forward feature of a single scale level.
@@ -149,7 +160,8 @@ class InsideSoftRetinaHead(AnchorHead):
             reg_feat = reg_conv(reg_feat)
         cls_score = self.retina_cls(cls_feat)
         bbox_pred = self.retina_reg(reg_feat)
-        return cls_score, bbox_pred
+        iou_pred = self.retina_iou(reg_feat)
+        return cls_score, bbox_pred, iou_pred
 
     def _get_targets_single(self,
                             flat_bbox_preds,
@@ -194,17 +206,41 @@ class InsideSoftRetinaHead(AnchorHead):
         inside_flags = anchor_inside_flags(flat_anchors, valid_flags,
                                            img_meta['img_shape'][:2],
                                            self.train_cfg.allowed_border)
+
         if not inside_flags.any():
             return (None, ) * 7
         # assign gt and sample anchors
         anchors = flat_anchors[inside_flags, :]
         bbox_preds = flat_bbox_preds[inside_flags, :]
-        proposals = self.bbox_coder.decode(anchors, bbox_preds).detach()
 
-        assign_result = self.assigner.assign(
+        anchor_assign_result = self.assigner.assign(
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
-        sampling_result = self.sampler.sample(assign_result, anchors,
+
+        # HAMBox assigner
+        proposals = self.bbox_coder.decode(anchors, bbox_preds).detach()
+        if len(gt_bboxes) > self.gpu_assign_thr:
+            device = gt_bboxes.device
+            gt_bboxes = gt_bboxes.cpu()
+            proposals = proposals.cpu()
+        prop_overlaps = bbox_overlaps(gt_bboxes, proposals)
+
+        import pdb
+        pdb.set_trace()
+
+        # ignore
+        ignore_mask1 = (prop_overlaps >= self.ignore_th).sum(dim=0) > 0
+        if len(gt_bboxes) > self.gpu_assign_thr:
+            ignore_mask1 = ignore_mask1.to(device)
+            gt_bboxes = gt_bboxes.to(device)
+
+        ignore_mask2 = anchor_assign_result.gt_inds == 0
+        ignore_mask = ignore_mask1 & ignore_mask2
+        if ignore_mask.sum() > 0:
+            anchor_assign_result.gt_inds[ignore_mask] = -1
+            anchor_assign_result.labels[ignore_mask] = -1
+
+        sampling_result = self.sampler.sample(anchor_assign_result, anchors,
                                               gt_bboxes)
 
         num_valid_anchors = anchors.shape[0]
@@ -213,53 +249,11 @@ class InsideSoftRetinaHead(AnchorHead):
         labels = anchors.new_full((num_valid_anchors, ),
                                   self.background_label,
                                   dtype=torch.long)
+
         label_weights = anchors.new_zeros(num_valid_anchors, dtype=torch.float)
-        recall_flag = torch.zeros_like(labels)
 
         pos_inds = sampling_result.pos_inds
         neg_inds = sampling_result.neg_inds
-
-        center_assign_result = self.center_assigner.assign(
-            anchors, proposals, gt_bboxes, None if self.sampling else gt_labels)
-        center_pos_inds = center_assign_result.gt_inds.nonzero().reshape(-1)
-        mask = anchors.new_zeros(num_valid_anchors)
-        mask[center_pos_inds] = 1
-        mask[pos_inds] = 0
-        center_pos_inds = mask.nonzero().reshape(-1)
-        center_assign_result.gt_inds[~mask.bool()] = 0
-        center_sampling_result = self.sampler.sample(center_assign_result, proposals,
-                                                     gt_bboxes)
-
-        center_pos_inds = center_sampling_result.pos_inds
-        center_neg_inds = center_sampling_result.neg_inds
-
-        # print(len(center_pos_inds))
-
-        if len(center_pos_inds) > 0:
-            if not self.reg_decoded_bbox:
-                center_bbox_targets = self.bbox_coder.encode(
-                    center_sampling_result.pos_bboxes, center_sampling_result.pos_gt_bboxes)
-                # print(center_bbox_targets)
-            else:
-                center_bbox_targets = center_sampling_result.pos_gt_bboxes
-            bbox_targets[center_pos_inds, :] = center_bbox_targets
-            recall_flag[center_pos_inds] = 1
-            if self.recall_reg:
-                bbox_weights[center_pos_inds, :] = 1.0
-            if gt_labels is None:
-                # only rpn gives gt_labels as None, this time FG is 1
-                labels[center_pos_inds] = 1
-            else:
-                labels[center_pos_inds] = gt_labels[
-                    center_sampling_result.pos_assigned_gt_inds]
-            if self.train_cfg.pos_weight <= 0:
-                label_weights[center_pos_inds] = 1.0
-            else:
-                label_weights[center_pos_inds] = self.train_cfg.pos_weight
-
-        if len(center_neg_inds) > 0:
-            label_weights[center_neg_inds] = 1.0
-
         if len(pos_inds) > 0:
             if not self.reg_decoded_bbox:
                 pos_bbox_targets = self.bbox_coder.encode(
@@ -279,7 +273,6 @@ class InsideSoftRetinaHead(AnchorHead):
                 label_weights[pos_inds] = 1.0
             else:
                 label_weights[pos_inds] = self.train_cfg.pos_weight
-
         if len(neg_inds) > 0:
             label_weights[neg_inds] = 1.0
 
@@ -291,15 +284,13 @@ class InsideSoftRetinaHead(AnchorHead):
                 num_total_anchors,
                 inside_flags,
                 fill=self.background_label)  # fill bg label
-
             label_weights = unmap(label_weights, num_total_anchors,
                                   inside_flags)
             bbox_targets = unmap(bbox_targets, num_total_anchors, inside_flags)
             bbox_weights = unmap(bbox_weights, num_total_anchors, inside_flags)
-            recall_flag = unmap(recall_flag, num_total_anchors, inside_flags)
 
         return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
-                neg_inds, center_pos_inds, center_neg_inds, recall_flag, sampling_result)
+                neg_inds, sampling_result)
 
     def get_targets(self,
                     bbox_pred_list,
@@ -367,7 +358,7 @@ class InsideSoftRetinaHead(AnchorHead):
 
             bbox_pred_pre_img = []
             for j in range(len(bbox_pred_list)):
-                bbox_pred_pre_img.append(bbox_pred_list[j][i].permute(1, 2, 0).reshape(-1, 4))
+                bbox_pred_pre_img.append(bbox_pred_list[j][i].reshape(-1, 4))
             concat_bbox_pred_list.append(torch.cat(bbox_pred_pre_img))
 
         # compute targets for each image
@@ -387,19 +378,14 @@ class InsideSoftRetinaHead(AnchorHead):
             label_channels=label_channels,
             unmap_outputs=unmap_outputs)
         (all_labels, all_label_weights, all_bbox_targets, all_bbox_weights,
-         pos_inds_list, neg_inds_list, recall_pos_inds_list,
-         recall_neg_inds_list, all_recall_flags, sampling_results_list) = results[:10]
-        rest_results = list(results[10:])  # user-added return values
+         pos_inds_list, neg_inds_list, sampling_results_list) = results[:7]
+        rest_results = list(results[7:])  # user-added return values
         # no valid anchors
         if any([labels is None for labels in all_labels]):
             return None
         # sampled anchors of all images
         num_total_pos = sum([max(inds.numel(), 1) for inds in pos_inds_list])
         num_total_neg = sum([max(inds.numel(), 1) for inds in neg_inds_list])
-
-        recall_num_total_pos = sum([max(inds.numel(), 0) for inds in recall_pos_inds_list])
-        recall_num_total_neg = sum([max(inds.numel(), 0) for inds in recall_neg_inds_list])
-
         # split targets to a list w.r.t. multiple levels
         labels_list = images_to_levels(all_labels, num_level_anchors)
         label_weights_list = images_to_levels(all_label_weights,
@@ -408,12 +394,8 @@ class InsideSoftRetinaHead(AnchorHead):
                                              num_level_anchors)
         bbox_weights_list = images_to_levels(all_bbox_weights,
                                              num_level_anchors)
-        recall_flags_list = images_to_levels(all_recall_flags,
-                                             num_level_anchors)
-
         res = (labels_list, label_weights_list, bbox_targets_list,
-               bbox_weights_list, num_total_pos, num_total_neg,
-               recall_num_total_pos, recall_num_total_neg, recall_flags_list)
+               bbox_weights_list, num_total_pos, num_total_neg)
         if return_sampling_results:
             res = res + (sampling_results_list, )
         for i, r in enumerate(rest_results):  # user-added return values
@@ -421,9 +403,8 @@ class InsideSoftRetinaHead(AnchorHead):
 
         return res + tuple(rest_results)
 
-    def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
-                    bbox_targets, bbox_weights, recall_flags, num_total_samples,
-                    recall_num_total_samples):
+    def loss_single(self, cls_score, bbox_pred, iou_pred, anchors, labels,
+                    label_weights, bbox_targets, bbox_weights, num_total_samples):
         """Compute loss of a single scale level.
 
         Args:
@@ -448,15 +429,8 @@ class InsideSoftRetinaHead(AnchorHead):
         Returns:
             dict[str, Tensor]: A dictionary of loss components.
         """
-        if self.norm < 0:
-            avg_factor_reg = num_total_samples + recall_num_total_samples if self.recall_reg else num_total_samples
-            avg_factor_cls = num_total_samples + recall_num_total_samples
-        else:
-            avg_factor_reg = self.norm
-            avg_factor_cls = self.norm
-
+        # classification loss
         anchors = anchors.reshape(-1, 4)
-        recall_flags = recall_flags.reshape(-1)
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
         cls_score = cls_score.permute(0, 2, 3,
@@ -466,13 +440,19 @@ class InsideSoftRetinaHead(AnchorHead):
         bbox_weights = bbox_weights.reshape(-1, 4)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
 
-        # print(bbox_weights[recall_flags.bool()])
-        # print(labels[recall_flags.bool()])
-        # print(avg_factor_reg, avg_factor_cls)
+        iou_targets = label_weights.new_zeros(labels.shape)
+        iou_weights = label_weights.new_zeros(labels.shape)
+        iou_weights[(bbox_weights.sum(axis=1) > 0).nonzero()] = 1.
+        iou_pred = iou_pred.permute(0, 2, 3, 1).reshape(-1)
 
         bg_class_ind = self.num_classes
         pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
-        score = label_weights.new_zeros(labels.shape)
+
+        loss_cls = self.loss_cls(
+            cls_score,
+            labels,
+            label_weights,
+            avg_factor=num_total_samples)
 
         if self.reg_decoded_bbox:
             anchors = anchors.reshape(-1, 4)
@@ -482,9 +462,7 @@ class InsideSoftRetinaHead(AnchorHead):
             bbox_pred,
             bbox_targets,
             bbox_weights,
-            avg_factor=avg_factor_reg)
-        # import pdb
-        # pdb.set_trace()
+            avg_factor=num_total_samples)
 
         if len(pos_inds) > 0:
             # dx, dy, dw, dh
@@ -508,22 +486,24 @@ class InsideSoftRetinaHead(AnchorHead):
             if self.detach:
                 pos_decode_bbox_pred = pos_decode_bbox_pred.detach()
 
-            score[pos_inds] = bbox_overlaps(
+            iou_targets[pos_inds] = bbox_overlaps(
                 pos_decode_bbox_pred,
                 gt_bboxes,
                 is_aligned=True)
 
-        loss_cls = self.loss_cls(
-            cls_score, (labels, score),
-            weight=label_weights,
-            avg_factor=avg_factor_cls)
+        loss_iou = self.loss_iou(
+            iou_pred,
+            iou_targets,
+            iou_weights,
+            avg_factor=num_total_samples)
 
-        return loss_cls, loss_bbox
+        return loss_cls, loss_bbox, loss_iou
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
     def loss(self,
              cls_scores,
              bbox_preds,
+             iou_preds,
              gt_bboxes,
              gt_labels,
              img_metas,
@@ -566,12 +546,9 @@ class InsideSoftRetinaHead(AnchorHead):
         if cls_reg_targets is None:
             return None
         (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
-         num_total_pos, num_total_neg, recall_num_total_pos, recall_num_total_neg,
-         recall_flags_list) = cls_reg_targets
+         num_total_pos, num_total_neg) = cls_reg_targets
         num_total_samples = (
             num_total_pos + num_total_neg if self.sampling else num_total_pos)
-        recall_num_total_samples = (
-            recall_num_total_pos + recall_num_total_neg if self.sampling else recall_num_total_pos)
 
         # anchor number of multi levels
         num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]
@@ -582,21 +559,183 @@ class InsideSoftRetinaHead(AnchorHead):
         all_anchor_list = images_to_levels(concat_anchor_list,
                                            num_level_anchors)
 
-        # self.infos['pos_num'] += num_total_samples
-        # self.infos['recall'] += recall_num_total_samples
-        # print(self.infos['pos_num'] / self.infos['recall'])
-
-        losses_cls, losses_bbox = multi_apply(
+        losses_cls, losses_bbox, loss_iou = multi_apply(
             self.loss_single,
             cls_scores,
             bbox_preds,
+            iou_preds,
             all_anchor_list,
             labels_list,
             label_weights_list,
             bbox_targets_list,
             bbox_weights_list,
-            recall_flags_list,
-            num_total_samples=num_total_samples,
-            recall_num_total_samples=recall_num_total_samples)
+            num_total_samples=num_total_samples)
         # print(num_total_samples)
-        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
+        return dict(loss_cls=losses_cls, loss_bbox=losses_bbox, loss_iou=loss_iou)
+
+    @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
+    def get_bboxes(self,
+                   cls_scores,
+                   bbox_preds,
+                   iou_preds,
+                   img_metas,
+                   cfg=None,
+                   rescale=False):
+        """Transform network output for a batch into bbox predictions.
+
+        Args:
+            cls_scores (list[Tensor]): Box scores for each scale level
+                Has shape (N, num_anchors * num_classes, H, W)
+            bbox_preds (list[Tensor]): Box energies / deltas for each scale
+                level with shape (N, num_anchors * 4, H, W)
+            img_metas (list[dict]): Meta information of each image, e.g.,
+                image size, scaling factor, etc.
+            cfg (mmcv.Config | None): Test / postprocessing configuration,
+                if None, test_cfg would be used
+            rescale (bool): If True, return boxes in original image space.
+                Default: False.
+
+        Returns:
+            list[tuple[Tensor, Tensor]]: Each item in result_list is 2-tuple.
+                The first item is an (n, 5) tensor, where the first 4 columns
+                are bounding box positions (tl_x, tl_y, br_x, br_y) and the
+                5-th column is a score between 0 and 1. The second item is a
+                (n,) tensor where each item is the predicted class labelof the
+                corresponding box.
+
+        Example:
+            >>> import mmcv
+            >>> self = AnchorHead(
+            >>>     num_classes=9,
+            >>>     in_channels=1,
+            >>>     anchor_generator=dict(
+            >>>         type='AnchorGenerator',
+            >>>         scales=[8],
+            >>>         ratios=[0.5, 1.0, 2.0],
+            >>>         strides=[4,]))
+            >>> img_metas = [{'img_shape': (32, 32, 3), 'scale_factor': 1}]
+            >>> cfg = mmcv.Config(dict(
+            >>>     score_thr=0.00,
+            >>>     nms=dict(type='nms', iou_thr=1.0),
+            >>>     max_per_img=10))
+            >>> feat = torch.rand(1, 1, 3, 3)
+            >>> cls_score, bbox_pred = self.forward_single(feat)
+            >>> # note the input lists are over different levels, not images
+            >>> cls_scores, bbox_preds = [cls_score], [bbox_pred]
+            >>> result_list = self.get_bboxes(cls_scores, bbox_preds,
+            >>>                               img_metas, cfg)
+            >>> det_bboxes, det_labels = result_list[0]
+            >>> assert len(result_list) == 1
+            >>> assert det_bboxes.shape[1] == 5
+            >>> assert len(det_bboxes) == len(det_labels) == cfg.max_per_img
+        """
+        assert len(cls_scores) == len(bbox_preds) == len(iou_preds)
+        num_levels = len(cls_scores)
+
+        device = cls_scores[0].device
+        featmap_sizes = [cls_scores[i].shape[-2:] for i in range(num_levels)]
+        mlvl_anchors = self.anchor_generator.grid_anchors(
+            featmap_sizes, device=device)
+
+        result_list = []
+        for img_id in range(len(img_metas)):
+            cls_score_list = [
+                cls_scores[i][img_id].detach() for i in range(num_levels)
+            ]
+            bbox_pred_list = [
+                bbox_preds[i][img_id].detach() for i in range(num_levels)
+            ]
+            iou_pred_list = [
+                iou_preds[i][img_id].detach() for i in range(num_levels)
+            ]
+
+            img_shape = img_metas[img_id]['img_shape']
+            scale_factor = img_metas[img_id]['scale_factor']
+            proposals = self._get_bboxes_single(cls_score_list, bbox_pred_list,
+                                                iou_pred_list, mlvl_anchors,
+                                                img_shape, scale_factor, cfg, rescale)
+            result_list.append(proposals)
+        return result_list
+
+    def _get_bboxes_single(self,
+                           cls_score_list,
+                           bbox_pred_list,
+                           iou_pred_list,
+                           mlvl_anchors,
+                           img_shape,
+                           scale_factor,
+                           cfg,
+                           rescale=False):
+        """Transform outputs for a single batch item into bbox predictions.
+
+        Args:
+            cls_score_list (list[Tensor]): Box scores for a single scale level
+                Has shape (num_anchors * num_classes, H, W).
+            bbox_pred_list (list[Tensor]): Box energies / deltas for a single
+                scale level with shape (num_anchors * 4, H, W).
+            mlvl_anchors (list[Tensor]): Box reference for a single scale level
+                with shape (num_total_anchors, 4).
+            img_shape (tuple[int]): Shape of the input image,
+                (height, width, 3).
+            scale_factor (ndarray): Scale factor of the image arange as
+                (w_scale, h_scale, w_scale, h_scale).
+            cfg (mmcv.Config): Test / postprocessing configuration,
+                if None, test_cfg would be used.
+            rescale (bool): If True, return boxes in original image space.
+
+        Returns:
+            Tensor: Labeled boxes in shape (n, 5), where the first 4 columns
+                are bounding box positions (tl_x, tl_y, br_x, br_y) and the
+                5-th column is a score between 0 and 1.
+        """
+        cfg = self.test_cfg if cfg is None else cfg
+        assert len(cls_score_list) == len(bbox_pred_list) == len(iou_pred_list) == len(mlvl_anchors)
+        mlvl_bboxes = []
+        mlvl_scores = []
+        for cls_score, bbox_pred, iou_pred, anchors in zip(cls_score_list,
+                                                           bbox_pred_list,
+                                                           iou_pred_list,
+                                                           mlvl_anchors):
+            assert cls_score.size()[-2:] == bbox_pred.size()[-2:] == iou_pred.size()[-2:]
+            cls_score = cls_score.permute(1, 2,
+                                          0).reshape(-1, self.cls_out_channels)
+            iou_pred = iou_pred.permute(1, 2, 0).reshape(-1, 1).sigmoid()
+            if self.use_sigmoid_cls:
+                scores = cls_score.sigmoid()
+            else:
+                scores = cls_score.softmax(-1)
+            scores *= iou_pred
+
+            bbox_pred = bbox_pred.permute(1, 2, 0).reshape(-1, 4)
+            nms_pre = cfg.get('nms_pre', -1)
+            if nms_pre > 0 and scores.shape[0] > nms_pre:
+                # Get maximum scores for foreground classes.
+                if self.use_sigmoid_cls:
+                    max_scores, _ = scores.max(dim=1)
+                else:
+                    # remind that we set FG labels to [0, num_class-1]
+                    # since mmdet v2.0
+                    # BG cat_id: num_class
+                    max_scores, _ = scores[:, :-1].max(dim=1)
+                _, topk_inds = max_scores.topk(nms_pre)
+                anchors = anchors[topk_inds, :]
+                bbox_pred = bbox_pred[topk_inds, :]
+                scores = scores[topk_inds, :]
+            bboxes = self.bbox_coder.decode(
+                anchors, bbox_pred, max_shape=img_shape)
+            mlvl_bboxes.append(bboxes)
+            mlvl_scores.append(scores)
+        mlvl_bboxes = torch.cat(mlvl_bboxes)
+        if rescale:
+            mlvl_bboxes /= mlvl_bboxes.new_tensor(scale_factor)
+        mlvl_scores = torch.cat(mlvl_scores)
+        if self.use_sigmoid_cls:
+            # Add a dummy background class to the backend when using sigmoid
+            # remind that we set FG labels to [0, num_class-1] since mmdet v2.0
+            # BG cat_id: num_class
+            padding = mlvl_scores.new_zeros(mlvl_scores.shape[0], 1)
+            mlvl_scores = torch.cat([mlvl_scores, padding], dim=1)
+        det_bboxes, det_labels = multiclass_nms(mlvl_bboxes, mlvl_scores,
+                                                cfg.score_thr, cfg.nms,
+                                                cfg.max_per_img)
+        return det_bboxes, det_labels

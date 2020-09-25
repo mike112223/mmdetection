@@ -195,11 +195,8 @@ class AnaRetinaHead(AnchorHead):
                 _bbox_target[_pos_inds],
                 is_aligned=True)
 
-            # import pdb
-            # pdb.set_trace()
-
             if len(_gt_bbox) > 100:
-                device = _gt_bbox
+                device = _gt_bbox.device
                 _gt_bbox = _gt_bbox.cpu()
                 _bbox_pred = _bbox_pred.cpu()
 
@@ -210,6 +207,8 @@ class AnaRetinaHead(AnchorHead):
                 _gt_bbox = _gt_bbox.to(device)
 
             max_ious, assigned_gt_ind = ious.max(axis=1)
+            import pdb
+            pdb.set_trace()
 
             _gt_bboxes = _gt_bbox[assigned_gt_ind]
             x1 = _center[:, 0] > _gt_bboxes[:, 0]

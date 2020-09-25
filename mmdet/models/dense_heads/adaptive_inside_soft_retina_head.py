@@ -11,7 +11,7 @@ from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
 
 
 @HEADS.register_module()
-class InsideSoftRetinaHead(AnchorHead):
+class AdaptiveInsideSoftRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -57,13 +57,11 @@ class InsideSoftRetinaHead(AnchorHead):
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
 
-
-        self.infos = {'pos_num': 0, 'recall': 0}
         # TODO
         if 'train_cfg' in kwargs:
             self.center_assigner = build_assigner(kwargs['train_cfg'].center_assigner)
 
-        super(InsideSoftRetinaHead, self).__init__(
+        super(AdaptiveInsideSoftRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -191,6 +189,7 @@ class InsideSoftRetinaHead(AnchorHead):
                 num_total_pos (int): Number of positive samples in all images
                 num_total_neg (int): Number of negative samples in all images
         """
+
         inside_flags = anchor_inside_flags(flat_anchors, valid_flags,
                                            img_meta['img_shape'][:2],
                                            self.train_cfg.allowed_border)
@@ -199,6 +198,7 @@ class InsideSoftRetinaHead(AnchorHead):
         # assign gt and sample anchors
         anchors = flat_anchors[inside_flags, :]
         bbox_preds = flat_bbox_preds[inside_flags, :]
+
         proposals = self.bbox_coder.decode(anchors, bbox_preds).detach()
 
         assign_result = self.assigner.assign(
@@ -221,6 +221,7 @@ class InsideSoftRetinaHead(AnchorHead):
 
         center_assign_result = self.center_assigner.assign(
             anchors, proposals, gt_bboxes, None if self.sampling else gt_labels)
+
         center_pos_inds = center_assign_result.gt_inds.nonzero().reshape(-1)
         mask = anchors.new_zeros(num_valid_anchors)
         mask[center_pos_inds] = 1
@@ -245,7 +246,7 @@ class InsideSoftRetinaHead(AnchorHead):
             bbox_targets[center_pos_inds, :] = center_bbox_targets
             recall_flag[center_pos_inds] = 1
             if self.recall_reg:
-                bbox_weights[center_pos_inds, :] = 1.0
+                bbox_weights[pos_inds, :] = 1.0
             if gt_labels is None:
                 # only rpn gives gt_labels as None, this time FG is 1
                 labels[center_pos_inds] = 1
@@ -375,6 +376,7 @@ class InsideSoftRetinaHead(AnchorHead):
             gt_bboxes_ignore_list = [None for _ in range(num_imgs)]
         if gt_labels_list is None:
             gt_labels_list = [None for _ in range(num_imgs)]
+
         results = multi_apply(
             self._get_targets_single,
             concat_bbox_pred_list,
@@ -465,10 +467,6 @@ class InsideSoftRetinaHead(AnchorHead):
         bbox_targets = bbox_targets.reshape(-1, 4)
         bbox_weights = bbox_weights.reshape(-1, 4)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
-
-        # print(bbox_weights[recall_flags.bool()])
-        # print(labels[recall_flags.bool()])
-        # print(avg_factor_reg, avg_factor_cls)
 
         bg_class_ind = self.num_classes
         pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
@@ -582,9 +580,7 @@ class InsideSoftRetinaHead(AnchorHead):
         all_anchor_list = images_to_levels(concat_anchor_list,
                                            num_level_anchors)
 
-        # self.infos['pos_num'] += num_total_samples
-        # self.infos['recall'] += recall_num_total_samples
-        # print(self.infos['pos_num'] / self.infos['recall'])
+        # print('!!!', num_total_samples, recall_num_total_samples)
 
         losses_cls, losses_bbox = multi_apply(
             self.loss_single,

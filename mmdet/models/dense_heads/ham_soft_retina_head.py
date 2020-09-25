@@ -11,7 +11,7 @@ from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
 
 
 @HEADS.register_module()
-class InsideSoftRetinaHead(AnchorHead):
+class HamSoftRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -63,7 +63,7 @@ class InsideSoftRetinaHead(AnchorHead):
         if 'train_cfg' in kwargs:
             self.center_assigner = build_assigner(kwargs['train_cfg'].center_assigner)
 
-        super(InsideSoftRetinaHead, self).__init__(
+        super(HamSoftRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -456,19 +456,23 @@ class InsideSoftRetinaHead(AnchorHead):
             avg_factor_cls = self.norm
 
         anchors = anchors.reshape(-1, 4)
-        recall_flags = recall_flags.reshape(-1)
+        recall_flags = recall_flags.reshape(-1).bool()
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
+        label_weights[recall_flags] = 0
+        recall_label_weights = label_weights.new_zeros(label_weights.shape)
+        recall_label_weights[recall_flags] = 1
+
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)
 
         bbox_targets = bbox_targets.reshape(-1, 4)
         bbox_weights = bbox_weights.reshape(-1, 4)
-        bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
+        recall_bbox_weights = bbox_weights.new_zeros(bbox_weights.shape)
+        bbox_weights[recall_flags] = 0
+        recall_bbox_weights[recall_flags] = 1
 
-        # print(bbox_weights[recall_flags.bool()])
-        # print(labels[recall_flags.bool()])
-        # print(avg_factor_reg, avg_factor_cls)
+        bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
 
         bg_class_ind = self.num_classes
         pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
@@ -482,7 +486,14 @@ class InsideSoftRetinaHead(AnchorHead):
             bbox_pred,
             bbox_targets,
             bbox_weights,
-            avg_factor=avg_factor_reg)
+            avg_factor=num_total_samples)
+
+        recall_loss_bbox = self.loss_bbox(
+            bbox_pred,
+            bbox_targets,
+            recall_bbox_weights,
+            avg_factor=recall_num_total_samples)
+
         # import pdb
         # pdb.set_trace()
 
@@ -508,6 +519,9 @@ class InsideSoftRetinaHead(AnchorHead):
             if self.detach:
                 pos_decode_bbox_pred = pos_decode_bbox_pred.detach()
 
+            # import pdb
+            # pdb.set_trace()
+
             score[pos_inds] = bbox_overlaps(
                 pos_decode_bbox_pred,
                 gt_bboxes,
@@ -516,9 +530,15 @@ class InsideSoftRetinaHead(AnchorHead):
         loss_cls = self.loss_cls(
             cls_score, (labels, score),
             weight=label_weights,
-            avg_factor=avg_factor_cls)
+            avg_factor=num_total_samples)
 
-        return loss_cls, loss_bbox
+        recall_loss_cls = self.loss_cls(
+            cls_score, (labels, score),
+            weight=recall_label_weights,
+            avg_factor=recall_num_total_samples)
+        # print(recall_loss_cls, loss_cls, recall_loss_bbox, loss_bbox)
+
+        return recall_loss_cls + loss_cls, loss_bbox + recall_loss_bbox
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
     def loss(self,

@@ -105,7 +105,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='InsideSoftRetinaHead',
+        type='AdaptiveInsideSoftRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -129,7 +129,6 @@ model = dict(
             beta=2.0,
             loss_weight=1.0),
         detach=True,
-        recall_reg=True,
         reg_decoded_bbox=True,
         loss_bbox=dict(type='DIoULoss', loss_weight=2.0)))
 # training and testing settings
@@ -142,9 +141,9 @@ train_cfg = dict(
         ignore_iof_thr=-1,
         gpu_assign_thr=100),
     center_assigner=dict(
-        type='PropCenterRegionAssigner',
+        type='AdaptivePropCenterRegionAssigner',
         pos_scale=1.,
-        min_pos_iou=0.7,
+        min_pos_iou=0.6,
         gpu_assign_thr=100),
     allowed_border=-1,
     pos_weight=-1,
@@ -189,6 +188,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2_iousoft/epoch_391.pth'
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_211.pth'
 resume_from = None
 workflow = [('train', 1)]
