@@ -60,7 +60,10 @@ class AnaRetinaHead(AnchorHead):
 
         self.results = {'pos_scores': [], 'neg_scores': [],
                         'pos_ious': [], 'neg_ious': [],
-                        'in_gt': [], 'in_pos_gt': []}
+                        'neg_in_gt': [], 'pos_in_gt': [],
+                        'pos_anchor_gt_assign': [], 'neg_anchor_gt_assign': [],
+                        'gt_areas': []}
+        self.gt_count = 0
 
     def _init_layers(self):
         """Initialize layers of the head."""
@@ -168,6 +171,7 @@ class AnaRetinaHead(AnchorHead):
         # import pdb
         # pdb.set_trace()
 
+        _gt_count = 0
         for i in range(len(gt_bboxes)):
 
             _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
@@ -190,6 +194,9 @@ class AnaRetinaHead(AnchorHead):
 
             _bbox_pred = self.bbox_coder.decode(_anchor, _bbox_pred)
 
+            _pos_gt_assign = ((_bbox_target[_pos_inds].unsqueeze(1) == _gt_bbox).sum(axis=2) == 4).nonzero()
+            assert len(_pos_gt_assign) == len(_pos_inds)
+
             pos_ious = bbox_overlaps(
                 _bbox_pred.detach()[_pos_inds],
                 _bbox_target[_pos_inds],
@@ -207,8 +214,6 @@ class AnaRetinaHead(AnchorHead):
                 _gt_bbox = _gt_bbox.to(device)
 
             max_ious, assigned_gt_ind = ious.max(axis=1)
-            import pdb
-            pdb.set_trace()
 
             _gt_bboxes = _gt_bbox[assigned_gt_ind]
             x1 = _center[:, 0] > _gt_bboxes[:, 0]
@@ -219,13 +224,28 @@ class AnaRetinaHead(AnchorHead):
             mask = _cls_score[_neg_inds] > 0.02
 
             self.results['pos_ious'].extend(pos_ious.cpu().numpy().tolist())
-            self.results['neg_ious'].extend(max_ious[_neg_inds][mask].cpu().numpy().tolist())
+            self.results['neg_ious'].extend(
+                max_ious[_neg_inds][mask].cpu().numpy().tolist())
 
-            self.results['pos_scores'].extend(_cls_score[_pos_inds].detach().cpu().numpy().tolist())
-            self.results['neg_scores'].extend(_cls_score[_neg_inds][mask].detach().cpu().numpy().tolist())
+            self.results['pos_scores'].extend(
+                _cls_score[_pos_inds].detach().cpu().numpy().tolist())
+            self.results['neg_scores'].extend(
+                _cls_score[_neg_inds][mask].detach().cpu().numpy().tolist())
 
-            self.results['in_gt'].extend((x1 * x2 * y1 * y2)[_neg_inds][mask].cpu().int().numpy().tolist())
-            self.results['in_pos_gt'].extend((x1 * x2 * y1 * y2)[_pos_inds].cpu().int().numpy().tolist())
+            self.results['neg_in_gt'].extend(
+                (x1 * x2 * y1 * y2)[_neg_inds][mask].cpu().int().numpy().tolist())
+            self.results['pos_in_gt'].extend(
+                (x1 * x2 * y1 * y2)[_pos_inds].cpu().int().numpy().tolist())
+
+            self.results['pos_anchor_gt_assign'].extend(
+                (_pos_gt_assign[:, 1] + self.gt_count + _gt_count).cpu().numpy().tolist())
+            self.results['neg_anchor_gt_assign'].extend(
+                (assigned_gt_ind[_neg_inds][mask] + self.gt_count + _gt_count).cpu().numpy().tolist())
+
+            _gt_count += len(_gt_bbox)
+
+        # import pdb
+        # pdb.set_trace()
 
         anchors = anchors.reshape(-1, 4)
         labels = labels.reshape(-1)
@@ -236,6 +256,9 @@ class AnaRetinaHead(AnchorHead):
         bbox_targets = bbox_targets.reshape(-1, 4)
         bbox_weights = bbox_weights.reshape(-1, 4)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
+
+        # import pdb
+        # pdb.set_trace()
 
         ious = label_weights.new_zeros(labels.shape)
 
@@ -332,5 +355,17 @@ class AnaRetinaHead(AnchorHead):
             bbox_weights_list,
             gt_bboxes=gt_bboxes,
             num_total_samples=num_total_samples)
+
+        for _gt_bbox in gt_bboxes:
+
+            self.results['gt_areas'].extend(
+                ((_gt_bbox[:, 2] - _gt_bbox[:, 0]) * \
+                 (_gt_bbox[:, 3] - _gt_bbox[:, 1])).sqrt().cpu().numpy().tolist())
+
+            self.gt_count += len(_gt_bbox)
+
+        # import pdb
+        # pdb.set_trace()
+
         # print(num_total_samples)
         return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)

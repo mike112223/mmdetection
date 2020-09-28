@@ -11,7 +11,7 @@ from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
 
 
 @HEADS.register_module()
-class HamSoftRetinaHead(AnchorHead):
+class HamnormCompensateInsideSoftRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -45,6 +45,8 @@ class HamSoftRetinaHead(AnchorHead):
                  detach=True,
                  recall_reg=False,
                  norm=-1,
+                 K=3,
+                 T=0.7,
                  coord_cfg=None,
                  custom_init=None,
                  **kwargs):
@@ -54,16 +56,17 @@ class HamSoftRetinaHead(AnchorHead):
         self.detach = detach
         self.recall_reg = recall_reg
         self.norm = norm
+        self.K = K
+        self.T = T
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
-
 
         self.infos = {'pos_num': 0, 'recall': 0}
         # TODO
         if 'train_cfg' in kwargs:
             self.center_assigner = build_assigner(kwargs['train_cfg'].center_assigner)
 
-        super(HamSoftRetinaHead, self).__init__(
+        super(HamnormCompensateInsideSoftRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -227,6 +230,33 @@ class HamSoftRetinaHead(AnchorHead):
         mask[pos_inds] = 0
         center_pos_inds = mask.nonzero().reshape(-1)
         center_assign_result.gt_inds[~mask.bool()] = 0
+
+        ### compensate
+        for i in range(len(gt_bboxes)):
+            mask = center_assign_result.gt_inds == i + 1
+            mask_idx = mask.nonzero().reshape(-1)
+            sorted_iou, sorted_inds = center_assign_result.max_overlaps[mask].sort(descending=True)
+            num_assigned_anchors = (assign_result.gt_inds == i + 1).sum()
+            num_compensated = self.K - num_assigned_anchors
+            if num_compensated > 0 and len(mask_idx) > 0:
+                # print('========')
+                # print(sorted_iou[0])
+                candidate_inds = sorted_inds[sorted_iou >= self.T]
+
+                if len(candidate_inds) > 0:
+                    # import pdb
+                    # pdb.set_trace()
+                    left_inds = candidate_inds[num_compensated:]
+                    # print(len(candidate_inds[:num_compensated]), len(left_inds))
+                    center_assign_result.gt_inds[mask_idx[left_inds]] = 0
+                    center_assign_result.labels[mask_idx[left_inds]] = -1
+                else:
+                    center_assign_result.gt_inds[mask_idx] = 0
+                    center_assign_result.labels[mask_idx] = -1
+            else:
+                center_assign_result.gt_inds[mask_idx] = 0
+                center_assign_result.labels[mask_idx] = -1
+
         center_sampling_result = self.sampler.sample(center_assign_result, proposals,
                                                      gt_bboxes)
 
@@ -234,7 +264,6 @@ class HamSoftRetinaHead(AnchorHead):
         center_neg_inds = center_sampling_result.neg_inds
 
         # print(len(center_pos_inds))
-
         if len(center_pos_inds) > 0:
             if not self.reg_decoded_bbox:
                 center_bbox_targets = self.bbox_coder.encode(
@@ -532,12 +561,9 @@ class HamSoftRetinaHead(AnchorHead):
         recall_flags = recall_flags.reshape(-1).bool()
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
-        print(label_weights.sum())
         label_weights[recall_flags] = 0
-        print(label_weights.sum())
         recall_label_weights = label_weights.new_zeros(label_weights.shape)
         recall_label_weights[recall_flags] = 1
-        print(recall_label_weights.sum())
 
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)
@@ -572,7 +598,7 @@ class HamSoftRetinaHead(AnchorHead):
 
         # import pdb
         # pdb.set_trace()
-        print(len(pos_inds))
+        # print(len(pos_inds))
 
         if len(pos_inds) > 0:
             # dx, dy, dw, dh
@@ -603,7 +629,6 @@ class HamSoftRetinaHead(AnchorHead):
                 pos_decode_bbox_pred,
                 gt_bboxes,
                 is_aligned=True)
-        print(score[recall_flags], cls_score[recall_flags].sigmoid().reshape(-1))
 
         loss_cls = self.loss_cls(
             cls_score, (labels, score),
@@ -613,8 +638,16 @@ class HamSoftRetinaHead(AnchorHead):
         recall_loss_cls = self.loss_cls(
             cls_score, (labels, score),
             weight=recall_label_weights,
-            avg_factor=recall_num_total_samples)
-        print(recall_loss_cls, loss_cls, recall_loss_bbox, loss_bbox)
+            avg_factor=max(1, recall_num_total_samples))
+
+        # if recall_flags.sum() > 0:
+        #     print(label_weights.sum())
+        #     print(label_weights.sum())
+        #     print(recall_label_weights.sum())
+        #     print(score[recall_flags], cls_score[recall_flags].sigmoid().reshape(-1))
+        #     print(recall_loss_cls, loss_cls, recall_loss_bbox, loss_bbox)
+        #     import pdb
+        #     pdb.set_trace()
 
         return recall_loss_cls + loss_cls, loss_bbox + recall_loss_bbox
 

@@ -11,7 +11,7 @@ from mmdet.core import (anchor_inside_flags, images_to_levels, multi_apply,
 
 
 @HEADS.register_module()
-class HamSoftRetinaHead(AnchorHead):
+class InsideSoftRetinaHeadbk(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -63,7 +63,7 @@ class HamSoftRetinaHead(AnchorHead):
         if 'train_cfg' in kwargs:
             self.center_assigner = build_assigner(kwargs['train_cfg'].center_assigner)
 
-        super(HamSoftRetinaHead, self).__init__(
+        super(InsideSoftRetinaHeadbk, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -422,8 +422,8 @@ class HamSoftRetinaHead(AnchorHead):
         return res + tuple(rest_results)
 
     def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
-                    bbox_targets, bbox_weights, recall_flags, gt_bboxes,
-                    num_total_samples, recall_num_total_samples):
+                    bbox_targets, bbox_weights, recall_flags, num_total_samples,
+                    recall_num_total_samples):
         """Compute loss of a single scale level.
 
         Args:
@@ -449,78 +449,6 @@ class HamSoftRetinaHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
 
-        # print('========')
-        # for i in range(len(gt_bboxes)):
-
-        #     _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
-        #     _label = labels[i]
-
-        #     _gt_bbox = gt_bboxes[i]
-        #     if len(_gt_bbox) == 0:
-        #         continue
-
-        #     _bbox_pred = bbox_pred[i].permute(1, 2, 0).reshape(-1, 4)
-        #     _bbox_target = bbox_targets[i]
-        #     _anchor = anchors[i]
-        #     _center = torch.cat(
-        #         [((_anchor[:, 0] + _anchor[:, 2]) / 2).reshape(-1, 1),
-        #          ((_anchor[:, 1] + _anchor[:, 3]) / 2).reshape(-1, 1)], 1)
-
-        #     bg_class_ind = self.num_classes
-        #     _pos_inds = ((_label >= 0) & (_label < bg_class_ind)).nonzero().squeeze(1)
-        #     _neg_inds = ((_label >= 0) & (_label == bg_class_ind)).nonzero().squeeze(1)
-
-        #     _bbox_pred = self.bbox_coder.decode(_anchor, _bbox_pred)
-
-        #     _pos_gt_assign = ((_bbox_target[_pos_inds].unsqueeze(1) == _gt_bbox).sum(axis=2) == 4).nonzero()
-        #     assert len(_pos_gt_assign) == len(_pos_inds)
-
-        #     pos_ious = bbox_overlaps(
-        #         _bbox_pred.detach()[_pos_inds],
-        #         _bbox_target[_pos_inds],
-        #         is_aligned=True)
-
-        #     if len(_gt_bbox) > 100:
-        #         device = _gt_bbox.device
-        #         _gt_bbox = _gt_bbox.cpu()
-        #         _bbox_pred = _bbox_pred.cpu()
-
-        #     ious = bbox_overlaps(
-        #         _bbox_pred.detach(),
-        #         _gt_bbox)
-        #     if len(_gt_bbox) > 100:
-        #         _gt_bbox = _gt_bbox.to(device)
-
-        #     max_ious, assigned_gt_ind = ious.max(axis=1)
-
-        #     _gt_bboxes = _gt_bbox[assigned_gt_ind]
-        #     x1 = _center[:, 0] > _gt_bboxes[:, 0]
-        #     x2 = _center[:, 0] < _gt_bboxes[:, 2]
-        #     y1 = _center[:, 1] > _gt_bboxes[:, 1]
-        #     y2 = _center[:, 1] < _gt_bboxes[:, 3]
-
-        #     print('anchor in gt:', (x1 * x2 * y1 * y2).sum())
-        #     print('gt_area:', ((_gt_bbox[:, 2] - _gt_bbox[:, 0]) * (_gt_bbox[:, 3] - _gt_bbox[:, 1])).sqrt())
-
-        #     import pdb
-        #     pdb.set_trace()
-
-        #     import cv2
-        #     import numpy as np
-        #     bg = np.ones((640, 640, 3)) * 255
-        #     bbox = _bbox_pred.int()[recall_flags[i].bool()].detach().cpu().numpy()
-        #     anchor = _anchor.int()[recall_flags[i].bool()].cpu().numpy()
-        #     gt = _bbox_target.int()[recall_flags[i].bool()].cpu().numpy()
-        #     for j in range(3):
-        #         x1, y1, x2, y2 = bbox[j]
-        #         cv2.rectangle(bg, (x1, y1), (x2, y2), (0, 255, 0), 1)
-        #         x1, y1, x2, y2 = anchor[j]
-        #         cv2.rectangle(bg, (x1, y1), (x2, y2), (0, 0, 255), 1)
-        #         x1, y1, x2, y2 = gt[j]
-        #         cv2.rectangle(bg, (x1, y1), (x2, y2), (255, 0, 0), 1)
-
-        #     cv2.imwrite('%d.jpg'%i, bg)
-
         if self.norm < 0:
             avg_factor_reg = num_total_samples + recall_num_total_samples if self.recall_reg else num_total_samples
             avg_factor_cls = num_total_samples + recall_num_total_samples
@@ -529,30 +457,26 @@ class HamSoftRetinaHead(AnchorHead):
             avg_factor_cls = self.norm
 
         anchors = anchors.reshape(-1, 4)
-        recall_flags = recall_flags.reshape(-1).bool()
+        recall_flags = recall_flags.reshape(-1)
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
-        print(label_weights.sum())
-        label_weights[recall_flags] = 0
-        print(label_weights.sum())
-        recall_label_weights = label_weights.new_zeros(label_weights.shape)
-        recall_label_weights[recall_flags] = 1
-        print(recall_label_weights.sum())
-
         cls_score = cls_score.permute(0, 2, 3,
                                       1).reshape(-1, self.cls_out_channels)
 
         bbox_targets = bbox_targets.reshape(-1, 4)
         bbox_weights = bbox_weights.reshape(-1, 4)
-        recall_bbox_weights = bbox_weights.new_zeros(bbox_weights.shape)
-        bbox_weights[recall_flags] = 0
-        recall_bbox_weights[recall_flags] = 1
-
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, 4)
+
+        # print(bbox_weights[recall_flags.bool()])
+        # print(labels[recall_flags.bool()])
+        # print(avg_factor_reg, avg_factor_cls)
 
         bg_class_ind = self.num_classes
         pos_inds = ((labels >= 0) & (labels < bg_class_ind)).nonzero().squeeze(1)
         score = label_weights.new_zeros(labels.shape)
+
+        import pdb
+        pdb.set_trace()
 
         if self.reg_decoded_bbox:
             anchors = anchors.reshape(-1, 4)
@@ -562,17 +486,9 @@ class HamSoftRetinaHead(AnchorHead):
             bbox_pred,
             bbox_targets,
             bbox_weights,
-            avg_factor=num_total_samples)
-
-        recall_loss_bbox = self.loss_bbox(
-            bbox_pred,
-            bbox_targets,
-            recall_bbox_weights,
-            avg_factor=recall_num_total_samples)
-
+            avg_factor=avg_factor_reg)
         # import pdb
         # pdb.set_trace()
-        print(len(pos_inds))
 
         if len(pos_inds) > 0:
             # dx, dy, dw, dh
@@ -596,27 +512,17 @@ class HamSoftRetinaHead(AnchorHead):
             if self.detach:
                 pos_decode_bbox_pred = pos_decode_bbox_pred.detach()
 
-            # import pdb
-            # pdb.set_trace()
-
             score[pos_inds] = bbox_overlaps(
                 pos_decode_bbox_pred,
                 gt_bboxes,
                 is_aligned=True)
-        print(score[recall_flags], cls_score[recall_flags].sigmoid().reshape(-1))
 
         loss_cls = self.loss_cls(
             cls_score, (labels, score),
             weight=label_weights,
-            avg_factor=num_total_samples)
+            avg_factor=avg_factor_cls)
 
-        recall_loss_cls = self.loss_cls(
-            cls_score, (labels, score),
-            weight=recall_label_weights,
-            avg_factor=recall_num_total_samples)
-        print(recall_loss_cls, loss_cls, recall_loss_bbox, loss_bbox)
-
-        return recall_loss_cls + loss_cls, loss_bbox + recall_loss_bbox
+        return loss_cls, loss_bbox
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
     def loss(self,
@@ -694,7 +600,6 @@ class HamSoftRetinaHead(AnchorHead):
             bbox_targets_list,
             bbox_weights_list,
             recall_flags_list,
-            gt_bboxes=gt_bboxes,
             num_total_samples=num_total_samples,
             recall_num_total_samples=recall_num_total_samples)
         # print(num_total_samples)

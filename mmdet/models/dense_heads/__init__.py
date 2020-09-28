@@ -34,9 +34,13 @@ from .iou_aware_plus_retina_head import IouAwarePlusRetinaHead
 from .iou_aware_ham_retina_head import IouAwareHamRetinaHead
 from .ana_iou_retina_head import AnaIoURetinaHead
 from .inside_soft_retina_head import InsideSoftRetinaHead
+from .inside_soft_retina_head_bk import InsideSoftRetinaHeadbk
 from .adaptive_inside_soft_retina_head import AdaptiveInsideSoftRetinaHead
 from .iou_aware_ham_retina_head_p import IouAwareHamRetinaHeadp
 from .ham_soft_retina_head import HamSoftRetinaHead
+from .compensate_inside_soft_retina_head import CompensateInsideSoftRetinaHead
+from .gtnorm_compensate_inside_soft_retina_head import GtnormCompensateInsideSoftRetinaHead
+from .hamnorm_compensate_inside_soft_retina_head import HamnormCompensateInsideSoftRetinaHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -48,5 +52,7 @@ __all__ = [
     'IouBalancedPropRetinaHead', 'HAMRetinaHead', 'IouBalancedNoisySoftRetinaHead',
     'IouAwareRetinaHead', 'SoftRetinaHead', 'AnaRetinaHead', 'IouAwarePlusRetinaHead',
     'IouAwareHamRetinaHead', 'AnaIoURetinaHead', 'InsideSoftRetinaHead',
-    'AdaptiveInsideSoftRetinaHead', 'IouAwareHamRetinaHeadp', 'HamSoftRetinaHead'
+    'AdaptiveInsideSoftRetinaHead', 'IouAwareHamRetinaHeadp', 'HamSoftRetinaHead',
+    'InsideSoftRetinaHeadbk', 'CompensateInsideSoftRetinaHead', 'GtnormCompensateInsideSoftRetinaHead',
+    'HamnormCompensateInsideSoftRetinaHead'
 ]

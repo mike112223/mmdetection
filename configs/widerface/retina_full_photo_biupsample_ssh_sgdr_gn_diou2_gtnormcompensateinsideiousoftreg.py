@@ -105,7 +105,7 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='AnaRetinaHead',
+        type='GtnormCompensateInsideSoftRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
@@ -124,11 +124,12 @@ model = dict(
             target_means=[.0, .0, .0, .0],
             target_stds=[0.1, 0.1, 0.2, 0.2]),
         loss_cls=dict(
-            type='FocalLoss',
+            type='QualityFocalLoss',
             use_sigmoid=True,
-            gamma=2.0,
-            alpha=0.25,
+            beta=2.0,
             loss_weight=1.0),
+        detach=True,
+        recall_reg=True,
         reg_decoded_bbox=True,
         loss_bbox=dict(type='DIoULoss', loss_weight=2.0)))
 # training and testing settings
@@ -139,6 +140,11 @@ train_cfg = dict(
         neg_iou_thr=0.35,
         min_pos_iou=0.35,
         ignore_iof_thr=-1,
+        gpu_assign_thr=100),
+    center_assigner=dict(
+        type='PropCenterRegionAssigner',
+        pos_scale=1.,
+        min_pos_iou=0.7,
         gpu_assign_thr=100),
     allowed_border=-1,
     pos_weight=-1,
@@ -152,7 +158,7 @@ test_cfg = dict(
 
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.0, weight_decay=0)
+optimizer = dict(type='SGD', lr=0.00375, momentum=0.9, weight_decay=5e-4)
 optimizer_config = dict()#grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(
@@ -168,7 +174,7 @@ lr_config = dict(
     warmup_ratio=1e-1,
     min_lr_ratio=1e-2)
 # runtime settings
-total_epochs = 1
+total_epochs = 901
 log_config = dict(interval=100)
 
 
@@ -183,6 +189,6 @@ log_config = dict(
 # yapf:enable
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_301.pth'
+load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2_iousoft/epoch_391.pth'
 resume_from = None
 workflow = [('train', 1)]
