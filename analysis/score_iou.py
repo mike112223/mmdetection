@@ -23,6 +23,8 @@ pos_anchor_gt_assign = np.asarray(results['pos_anchor_gt_assign'])
 neg_anchor_gt_assign = np.asarray(results['neg_anchor_gt_assign'])
 
 gt_areas = np.asarray(results['gt_areas'])
+gt_ws = np.asarray(results['gt_ws'])
+gt_hs = np.asarray(results['gt_hs'])
 
 bins = 50
 
@@ -205,14 +207,17 @@ pos_gt_assign = np.bincount(pos_anchor_gt_assign)
 plt.figure()
 plt.hist(pos_gt_assign, bins=bins, alpha=0.7)
 plt.title('neg score distribution (iou > 0.8)')
-plt.xlabel('scores')
+plt.xlabel('')
 plt.show()
 
 plt.figure()
 plt.bar(np.arange(len(pos_gt_assign)), pos_gt_assign)
 plt.title('neg score distribution (iou > 0.8)')
-plt.xlabel('scores')
+plt.xlabel('gt_idx')
 plt.show()
+
+mask = pos_gt_assign == 0
+not_anchor_recall_gt_areas = gt_areas[mask]
 
 
 recall_gt_assign = np.bincount(neg_anchor_gt_assign[neg_in_gt & (neg_ious > 0.7)])
@@ -222,6 +227,8 @@ plt.title('neg score distribution (iou > 0.8)')
 plt.xlabel('scores')
 plt.show()
 
+mask = recall_gt_assign == 0
+not_prop_recall_gt_areas = gt_areas[mask]
 
 pos_gt_assign + recall_gt_assign
 ratio = pos_gt_assign[recall_gt_assign > 0] / (recall_gt_assign[recall_gt_assign > 0] + 1e-6)
@@ -275,7 +282,7 @@ surf = ax.plot_surface(X, Y, hist, cmap=cm.coolwarm,
 ax.zaxis.set_major_locator(LinearLocator(10))
 # ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 fig.colorbar(surf, shrink=0.5, aspect=10)
-plt.title('max iou')
+plt.title('max iou distribution')
 plt.xlabel('ious')
 plt.ylabel('scores')
 plt.show()
@@ -297,7 +304,7 @@ surf = ax.plot_surface(X, Y, hist, cmap=cm.coolwarm,
 ax.zaxis.set_major_locator(LinearLocator(10))
 # ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 fig.colorbar(surf, shrink=0.5, aspect=10)
-plt.title('max score')
+plt.title('max score distribution')
 plt.xlabel('ious')
 plt.ylabel('scores')
 plt.show()

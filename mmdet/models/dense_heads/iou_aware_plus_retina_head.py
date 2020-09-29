@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init, constant_init
 
-from ..builder import HEADS, build_loss
+from ..builder import HEADS
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
 from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
@@ -42,17 +42,15 @@ class IouAwarePlusRetinaHead(AnchorHead):
                      scales_per_octave=3,
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
-                 loss_iou=dict(
-                     type='CrossEntropyLoss',
-                     use_sigmoid=True,
-                     loss_weight=1.0),
                  detach=True,
+                 regloss=False,
                  coord_cfg=None,
                  custom_init=None,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
+        self.regloss = regloss
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
 
@@ -62,7 +60,6 @@ class IouAwarePlusRetinaHead(AnchorHead):
             anchor_generator=anchor_generator,
             **kwargs)
 
-        self.loss_iou = build_loss(loss_iou)
         self.detach = detach
 
         if self.coord_cfg is not None:
@@ -210,10 +207,17 @@ class IouAwarePlusRetinaHead(AnchorHead):
                 gt_bboxes,
                 is_aligned=True)
 
-        loss_cls = self.loss_cls(
-            cls_score, (labels, iou_targets),
-            weight=label_weights,
-            avg_factor=num_total_samples)
+        if self.regloss:
+            loss_cls = self.loss_cls(
+                cls_score,
+                iou_targets,
+                label_weights,
+                avg_factor=num_total_samples)
+        else:
+            loss_cls = self.loss_cls(
+                cls_score, (labels, iou_targets),
+                weight=label_weights,
+                avg_factor=num_total_samples)
 
         return loss_cls, loss_bbox
 

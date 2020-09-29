@@ -62,7 +62,7 @@ class AnaRetinaHead(AnchorHead):
                         'pos_ious': [], 'neg_ious': [],
                         'neg_in_gt': [], 'pos_in_gt': [],
                         'pos_anchor_gt_assign': [], 'neg_anchor_gt_assign': [],
-                        'gt_areas': []}
+                        'gt_areas': [], 'gt_ws': [], 'gt_hs': []}
         self.gt_count = 0
 
     def _init_layers(self):
@@ -361,6 +361,12 @@ class AnaRetinaHead(AnchorHead):
             self.results['gt_areas'].extend(
                 ((_gt_bbox[:, 2] - _gt_bbox[:, 0]) * \
                  (_gt_bbox[:, 3] - _gt_bbox[:, 1])).sqrt().cpu().numpy().tolist())
+
+            self.results['gt_ws'].extend(
+                (_gt_bbox[:, 2] - _gt_bbox[:, 0]).cpu().numpy().tolist())
+
+            self.results['gt_hs'].extend(
+                (_gt_bbox[:, 3] - _gt_bbox[:, 1]).sqrt().cpu().numpy().tolist())
 
             self.gt_count += len(_gt_bbox)
 
