@@ -24,7 +24,7 @@ neg_anchor_gt_assign = np.asarray(results['neg_anchor_gt_assign'])
 
 gt_areas = np.asarray(results['gt_areas'])
 gt_ws = np.asarray(results['gt_ws'])
-gt_hs = np.asarray(results['gt_hs'])
+gt_hs = np.power(np.asarray(results['gt_hs']), 2)
 
 bins = 50
 
@@ -217,7 +217,8 @@ plt.xlabel('gt_idx')
 plt.show()
 
 mask = pos_gt_assign == 0
-not_anchor_recall_gt_areas = gt_areas[mask]
+not_anchor_recall_gt_hs = gt_hs[mask]
+not_anchor_recall_gt_ws = gt_ws[mask]
 
 
 recall_gt_assign = np.bincount(neg_anchor_gt_assign[neg_in_gt & (neg_ious > 0.7)])
@@ -233,6 +234,8 @@ not_prop_recall_gt_areas = gt_areas[mask]
 pos_gt_assign + recall_gt_assign
 ratio = pos_gt_assign[recall_gt_assign > 0] / (recall_gt_assign[recall_gt_assign > 0] + 1e-6)
 
+
+((recall_gt_assign == 0) & (pos_gt_assign == 0))
 
 ###
 max_iou = [[], []]
@@ -308,3 +311,53 @@ plt.title('max score distribution')
 plt.xlabel('ious')
 plt.ylabel('scores')
 plt.show()
+
+####
+gt_max_ious = np.zeros(max(pos_anchor_gt_assign))
+gt_iou_anchor_or_not = np.ones(max(pos_anchor_gt_assign)) * -1
+
+gt_max_scores = np.zeros(max(pos_anchor_gt_assign))
+gt_score_anchor_or_not = np.ones(max(pos_anchor_gt_assign)) * -1
+
+for i in range(max(pos_anchor_gt_assign)):
+    print(i)
+    pos_mask = pos_anchor_gt_assign == i
+    # mask = neg_ious > 0.7
+    # neg_mask = neg_anchor_gt_assign[mask] == i
+    neg_mask = neg_anchor_gt_assign == i
+
+    if pos_mask.sum() > 0:
+        pos_iou = pos_ious[pos_mask]
+        pos_score = pos_scores[pos_mask]
+        max_p_iou = pos_iou.max()
+        max_p_score = pos_score.max()
+    else:
+        max_p_iou = 0
+        max_p_score = 0
+
+    if neg_mask.sum() > 0:
+        neg_iou = neg_ious[neg_mask]
+        neg_score = neg_scores[neg_mask]
+        max_n_iou = neg_iou.max()
+        max_n_score = neg_score.max()
+    else:
+        max_n_iou = 0
+        max_n_score = 0
+
+    if max_p_iou > max_n_iou:
+        gt_max_ious[i] = max_p_iou
+        gt_iou_anchor_or_not[i] = 1
+    elif max_p_iou == 0 and max_n_iou == 0:
+        pass
+    else:
+        gt_max_ious[i] = max_n_iou
+        gt_iou_anchor_or_not[i] = 0
+
+    if max_p_score > max_n_score:
+        gt_max_scores[i] = max_p_score
+        gt_score_anchor_or_not[i] = 1
+    elif max_p_score == 0 and max_n_score == 0:
+        pass
+    else:
+        gt_max_scores[i] = max_n_score
+        gt_score_anchor_or_not[i] = 0

@@ -449,77 +449,85 @@ class HamSoftRetinaHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
 
-        # print('========')
-        # for i in range(len(gt_bboxes)):
+        print('========')
+        for i in range(len(gt_bboxes)):
 
-        #     _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
-        #     _label = labels[i]
+            _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
+            _label = labels[i]
 
-        #     _gt_bbox = gt_bboxes[i]
-        #     if len(_gt_bbox) == 0:
-        #         continue
+            _gt_bbox = gt_bboxes[i]
+            if len(_gt_bbox) == 0:
+                continue
 
-        #     _bbox_pred = bbox_pred[i].permute(1, 2, 0).reshape(-1, 4)
-        #     _bbox_target = bbox_targets[i]
-        #     _anchor = anchors[i]
-        #     _center = torch.cat(
-        #         [((_anchor[:, 0] + _anchor[:, 2]) / 2).reshape(-1, 1),
-        #          ((_anchor[:, 1] + _anchor[:, 3]) / 2).reshape(-1, 1)], 1)
+            _bbox_pred = bbox_pred[i].permute(1, 2, 0).reshape(-1, 4)
+            _bbox_target = bbox_targets[i]
+            _anchor = anchors[i]
+            _center = torch.cat(
+                [((_anchor[:, 0] + _anchor[:, 2]) / 2).reshape(-1, 1),
+                 ((_anchor[:, 1] + _anchor[:, 3]) / 2).reshape(-1, 1)], 1)
 
-        #     bg_class_ind = self.num_classes
-        #     _pos_inds = ((_label >= 0) & (_label < bg_class_ind)).nonzero().squeeze(1)
-        #     _neg_inds = ((_label >= 0) & (_label == bg_class_ind)).nonzero().squeeze(1)
+            bg_class_ind = self.num_classes
+            _pos_inds = ((_label >= 0) & (_label < bg_class_ind)).nonzero().squeeze(1)
+            _neg_inds = ((_label >= 0) & (_label == bg_class_ind)).nonzero().squeeze(1)
 
-        #     _bbox_pred = self.bbox_coder.decode(_anchor, _bbox_pred)
+            _bbox_pred = self.bbox_coder.decode(_anchor, _bbox_pred)
 
-        #     _pos_gt_assign = ((_bbox_target[_pos_inds].unsqueeze(1) == _gt_bbox).sum(axis=2) == 4).nonzero()
-        #     assert len(_pos_gt_assign) == len(_pos_inds)
+            _pos_gt_assign = ((_bbox_target[_pos_inds].unsqueeze(1) == _gt_bbox).sum(axis=2) == 4).nonzero()
+            assert len(_pos_gt_assign) == len(_pos_inds)
 
-        #     pos_ious = bbox_overlaps(
-        #         _bbox_pred.detach()[_pos_inds],
-        #         _bbox_target[_pos_inds],
-        #         is_aligned=True)
+            pos_ious = bbox_overlaps(
+                _bbox_pred.detach()[_pos_inds],
+                _bbox_target[_pos_inds],
+                is_aligned=True)
 
-        #     if len(_gt_bbox) > 100:
-        #         device = _gt_bbox.device
-        #         _gt_bbox = _gt_bbox.cpu()
-        #         _bbox_pred = _bbox_pred.cpu()
+            if len(_gt_bbox) > 100:
+                device = _gt_bbox.device
+                _gt_bbox = _gt_bbox.cpu()
+                _bbox_pred = _bbox_pred.cpu()
 
-        #     ious = bbox_overlaps(
-        #         _bbox_pred.detach(),
-        #         _gt_bbox)
-        #     if len(_gt_bbox) > 100:
-        #         _gt_bbox = _gt_bbox.to(device)
+            ious = bbox_overlaps(
+                _bbox_pred.detach(),
+                _gt_bbox)
+            if len(_gt_bbox) > 100:
+                _gt_bbox = _gt_bbox.to(device)
 
-        #     max_ious, assigned_gt_ind = ious.max(axis=1)
+            max_ious, assigned_gt_ind = ious.max(axis=1)
 
-        #     _gt_bboxes = _gt_bbox[assigned_gt_ind]
-        #     x1 = _center[:, 0] > _gt_bboxes[:, 0]
-        #     x2 = _center[:, 0] < _gt_bboxes[:, 2]
-        #     y1 = _center[:, 1] > _gt_bboxes[:, 1]
-        #     y2 = _center[:, 1] < _gt_bboxes[:, 3]
+            _gt_bboxes = _gt_bbox[assigned_gt_ind]
+            x1 = _center[:, 0] > _gt_bboxes[:, 0]
+            x2 = _center[:, 0] < _gt_bboxes[:, 2]
+            y1 = _center[:, 1] > _gt_bboxes[:, 1]
+            y2 = _center[:, 1] < _gt_bboxes[:, 3]
 
-        #     print('anchor in gt:', (x1 * x2 * y1 * y2).sum())
-        #     print('gt_area:', ((_gt_bbox[:, 2] - _gt_bbox[:, 0]) * (_gt_bbox[:, 3] - _gt_bbox[:, 1])).sqrt())
+            print('anchor in gt:', (x1 * x2 * y1 * y2).sum())
+            print('gt_area:', ((_gt_bbox[:, 2] - _gt_bbox[:, 0]) * (_gt_bbox[:, 3] - _gt_bbox[:, 1])).sqrt())
 
-        #     import pdb
-        #     pdb.set_trace()
+            if recall_flags[i].sum() == 0:
+                continue
 
-        #     import cv2
-        #     import numpy as np
-        #     bg = np.ones((640, 640, 3)) * 255
-        #     bbox = _bbox_pred.int()[recall_flags[i].bool()].detach().cpu().numpy()
-        #     anchor = _anchor.int()[recall_flags[i].bool()].cpu().numpy()
-        #     gt = _bbox_target.int()[recall_flags[i].bool()].cpu().numpy()
-        #     for j in range(3):
-        #         x1, y1, x2, y2 = bbox[j]
-        #         cv2.rectangle(bg, (x1, y1), (x2, y2), (0, 255, 0), 1)
-        #         x1, y1, x2, y2 = anchor[j]
-        #         cv2.rectangle(bg, (x1, y1), (x2, y2), (0, 0, 255), 1)
-        #         x1, y1, x2, y2 = gt[j]
-        #         cv2.rectangle(bg, (x1, y1), (x2, y2), (255, 0, 0), 1)
+            import pdb
+            pdb.set_trace()
 
-        #     cv2.imwrite('%d.jpg'%i, bg)
+            import cv2
+            import numpy as np
+            bg = np.ones((640, 640, 3)) * 255
+            bbox = _bbox_pred.int()[recall_flags[i].bool()].detach().cpu().numpy()
+            anchor = _anchor.int()[recall_flags[i].bool()].cpu().numpy()
+            gt = _bbox_target.int()[recall_flags[i].bool()].cpu().numpy()
+            clsscore = _cls_score.sigmoid()[recall_flags[i].bool()].detach().cpu().numpy()
+            iou = ious[recall_flags[i].bool()].cpu().numpy()
+            for j in range(min(20, len(bbox))):
+                x1, y1, x2, y2 = bbox[j]
+                cv2.rectangle(bg, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                x1, y1, x2, y2 = anchor[j]
+                cv2.rectangle(bg, (x1, y1), (x2, y2), (0, 0, 255), 1)
+                x1, y1, x2, y2 = gt[j]
+                cv2.rectangle(bg, (x1, y1), (x2, y2), (255, 0, 0), 1)
+
+                print(clsscore[j], iou[j])
+            print('max: ', clsscore.max(), iou.max())
+
+            cv2.imwrite('%d.jpg'%i, bg)
 
         if self.norm < 0:
             avg_factor_reg = num_total_samples + recall_num_total_samples if self.recall_reg else num_total_samples
@@ -648,6 +656,9 @@ class HamSoftRetinaHead(AnchorHead):
         assert len(featmap_sizes) == self.anchor_generator.num_levels
 
         device = cls_scores[0].device
+
+        import pdb
+        pdb.set_trace()
 
         anchor_list, valid_flag_list = self.get_anchors(
             featmap_sizes, img_metas, device=device)
