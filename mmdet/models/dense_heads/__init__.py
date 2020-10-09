@@ -43,6 +43,9 @@ from .gtnorm_compensate_inside_soft_retina_head import GtnormCompensateInsideSof
 from .hamnorm_compensate_inside_soft_retina_head import HamnormCompensateInsideSoftRetinaHead
 from .compensate_inside_iou_aware_retina_head import CompensateInsideIouAwareRetinaHead
 from .nonorm_retina_head import NoNormRetinaHead
+from .balancedgt_nonorm_retina_head import BalancedGtNoNormRetinaHead
+from .scoreioureweight_balancedgt_nonorm_retina_head import (
+    ScoreIouReweightBalancedGtNoNormRetinaHead)
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -57,5 +60,5 @@ __all__ = [
     'AdaptiveInsideSoftRetinaHead', 'IouAwareHamRetinaHeadp', 'HamSoftRetinaHead',
     'InsideSoftRetinaHeadbk', 'CompensateInsideSoftRetinaHead', 'GtnormCompensateInsideSoftRetinaHead',
     'HamnormCompensateInsideSoftRetinaHead', 'CompensateInsideIouAwareRetinaHead',
-    'NoNormRetinaHead'
+    'NoNormRetinaHead', 'BalancedGtNoNormRetinaHead', 'ScoreIouReweightBalancedGtNoNormRetinaHead'
 ]
