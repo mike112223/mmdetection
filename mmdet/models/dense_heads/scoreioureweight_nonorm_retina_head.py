@@ -12,7 +12,7 @@ from .anchor_head import AnchorHead
 
 
 @HEADS.register_module()
-class ScoreIouReweightBalancedGtNoNormRetinaHead(AnchorHead):
+class ScoreIouReweightNoNormRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -52,7 +52,7 @@ class ScoreIouReweightBalancedGtNoNormRetinaHead(AnchorHead):
         self.coord_cfg = coord_cfg
         self.batch = batch
 
-        super(ScoreIouReweightBalancedGtNoNormRetinaHead, self).__init__(
+        super(ScoreIouReweightNoNormRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -213,11 +213,7 @@ class ScoreIouReweightBalancedGtNoNormRetinaHead(AnchorHead):
         pos_ious = bbox_overlaps(pos_proposals, sampling_result.pos_gt_bboxes,
                                  is_aligned=True)
         pos_final_scores = torch.reciprocal(1.0 - pos_scores * pos_ious)
-        pos_weights = anchors.new_zeros(pos_inds.shape[0], dtype=torch.float)
-        for gt_id in torch.unique(sampling_result.pos_assigned_gt_inds):
-            mask = sampling_result.pos_assigned_gt_inds == gt_id
-            weights = pos_final_scores[mask]
-            pos_weights[mask] = weights / weights.sum()
+        pos_weights = pos_final_scores
 
         if len(pos_inds) > 0:
             if not self.reg_decoded_bbox:

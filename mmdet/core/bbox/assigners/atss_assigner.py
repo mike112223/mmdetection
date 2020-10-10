@@ -23,10 +23,12 @@ class ATSSAssigner(BaseAssigner):
     def __init__(self,
                  topk,
                  iou_calculator=dict(type='BboxOverlaps2D'),
-                 ignore_iof_thr=-1):
+                 ignore_iof_thr=-1,
+                 gpu_assign_thr=-1):
         self.topk = topk
         self.iou_calculator = build_iou_calculator(iou_calculator)
         self.ignore_iof_thr = ignore_iof_thr
+        self.gpu_assign_thr = gpu_assign_thr
 
     # https://github.com/sfzhang15/ATSS/blob/master/atss_core/modeling/rpn/atss/loss.py
 
@@ -66,6 +68,18 @@ class ATSSAssigner(BaseAssigner):
         INF = 100000000
         bboxes = bboxes[:, :4]
         num_gt, num_bboxes = gt_bboxes.size(0), bboxes.size(0)
+
+        assign_on_cpu = True if (self.gpu_assign_thr > 0) and (
+            gt_bboxes.shape[0] > self.gpu_assign_thr) else False
+        # compute overlap and assign gt on CPU when number of GT is large
+        if assign_on_cpu:
+            device = bboxes.device
+            bboxes = bboxes.cpu()
+            gt_bboxes = gt_bboxes.cpu()
+            if gt_bboxes_ignore is not None:
+                gt_bboxes_ignore = gt_bboxes_ignore.cpu()
+            if gt_labels is not None:
+                gt_labels = gt_labels.cpu()
 
         # compute iou between all bbox and gt
         overlaps = self.iou_calculator(bboxes, gt_bboxes)
@@ -174,5 +188,12 @@ class ATSSAssigner(BaseAssigner):
                     assigned_gt_inds[pos_inds] - 1]
         else:
             assigned_labels = None
+
+        if assign_on_cpu:
+            assigned_gt_inds = assigned_gt_inds.to(device)
+            max_overlaps = max_overlaps.to(device)
+            if assigned_labels is not None:
+                assigned_labels = assigned_labels.to(device)
+
         return AssignResult(
             num_gt, assigned_gt_inds, max_overlaps, labels=assigned_labels)

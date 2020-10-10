@@ -63,7 +63,7 @@ class AnchorHead(BaseDenseHead):
         # TODO better way to determine whether sample or not
         self.sampling = loss_cls['type'] not in [
             'FocalLoss', 'GHMC', 'QualityFocalLoss', 'OHEMLoss', 'FocalLossTmp',
-            'NegFocalLoss', 'NoisyFocalLoss'
+            'NegFocalLoss', 'NoisyFocalLoss', 'SmoothL1Loss', 'QualifySmoothL1Loss'
         ]
         if self.use_sigmoid_cls:
             self.cls_out_channels = num_classes

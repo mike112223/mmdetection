@@ -4,8 +4,7 @@ from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
 
 from mmdet.core import (anchor_inside_flags, build_anchor_generator,
                         build_assigner, build_bbox_coder, build_sampler,
-                        force_fp32, images_to_levels, multi_apply,
-                        multiclass_nms_slow as multiclass_nms, unmap,
+                        force_fp32, images_to_levels, multi_apply, unmap,
                         bbox_flip)
 from ..builder import HEADS
 from ..utils import CoordLayer
@@ -213,7 +212,7 @@ class BalancedGtNoNormRetinaHead(AnchorHead):
                 pos_bbox_targets = sampling_result.pos_gt_bboxes
             bbox_targets[pos_inds, :] = pos_bbox_targets
             bbox_weights[pos_inds, :] = gt_weights[
-                    sampling_result.pos_assigned_gt_inds][:, None].repeat(1, 4)
+                sampling_result.pos_assigned_gt_inds][:, None].repeat(1, 4)
             if gt_labels is None:
                 # only rpn gives gt_labels as None, this time FG is 1
                 labels[pos_inds] = 1
@@ -338,10 +337,13 @@ class BalancedGtNoNormRetinaHead(AnchorHead):
         # weight rescale
         pos_num = sum([inds.numel() for inds in pos_inds_list])
         scale = (pos_num / (
-                sum([label_weights[labels != self.background_label].sum()
-                     for labels, label_weights in
-                     zip(all_labels, all_label_weights)])
-                + 1e-10))
+                 sum([label_weights[labels != self.background_label].sum()
+                      for labels, label_weights in
+                      zip(all_labels, all_label_weights)]) + 1e-10))
+        print(scale, pos_num)
+        print([label_weights[labels != self.background_label].sum()
+                      for labels, label_weights in
+                      zip(all_labels, all_label_weights)])
         for labels, label_weights, bbox_weights in zip(
                 all_labels, all_label_weights, all_bbox_weights):
             label_weights[labels != self.background_label] *= scale
