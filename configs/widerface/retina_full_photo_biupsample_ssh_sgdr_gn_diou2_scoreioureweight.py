@@ -159,7 +159,6 @@ model = dict(
         stacked_convs=4,
         feat_channels=256,
         norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-        batch=12,
         anchor_generator=dict(
             type='AnchorGenerator',
             octave_base_scale=2.5198420997897464,

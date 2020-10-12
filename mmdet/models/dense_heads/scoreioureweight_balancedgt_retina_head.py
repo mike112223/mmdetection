@@ -2,15 +2,16 @@ import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
 
-from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
-                        multi_apply, unmap, bbox_overlaps)
+from mmdet.core import (anchor_inside_flags, images_to_levels,
+                        multi_apply, unmap, bbox_overlaps,
+                        force_fp32)
 from ..builder import HEADS
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
 
 
 @HEADS.register_module()
-class ScoreIouReweightRetinaHead(AnchorHead):
+class ScoreIouReweightBalancedGtRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -42,13 +43,14 @@ class ScoreIouReweightRetinaHead(AnchorHead):
                      ratios=[0.5, 1.0, 2.0],
                      strides=[8, 16, 32, 64, 128]),
                  coord_cfg=None,
+                 batch=4,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.coord_cfg = coord_cfg
 
-        super(ScoreIouReweightRetinaHead, self).__init__(
+        super(ScoreIouReweightBalancedGtRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -209,7 +211,11 @@ class ScoreIouReweightRetinaHead(AnchorHead):
         pos_ious = bbox_overlaps(pos_proposals, sampling_result.pos_gt_bboxes,
                                  is_aligned=True)
         pos_final_scores = torch.reciprocal(1.0 - pos_scores * pos_ious)
-        pos_weights = pos_final_scores
+        pos_weights = anchors.new_zeros(pos_inds.shape[0], dtype=torch.float)
+        for gt_id in torch.unique(sampling_result.pos_assigned_gt_inds):
+            mask = sampling_result.pos_assigned_gt_inds == gt_id
+            weights = pos_final_scores[mask]
+            pos_weights[mask] = weights / weights.sum()
 
         if len(pos_inds) > 0:
             if not self.reg_decoded_bbox:
@@ -353,9 +359,10 @@ class ScoreIouReweightRetinaHead(AnchorHead):
         # weight rescale
         pos_num = sum([inds.numel() for inds in pos_inds_list])
         scale = (pos_num / (
-                 sum([label_weights[labels != self.background_label].sum()
+                sum([label_weights[labels != self.background_label].sum()
                      for labels, label_weights in
-                     zip(all_labels, all_label_weights)]) + 1e-10))
+                     zip(all_labels, all_label_weights)])
+                + 1e-10))
         for labels, label_weights, bbox_weights in zip(
                 all_labels, all_label_weights, all_bbox_weights):
             label_weights[labels != self.background_label] *= scale

@@ -46,11 +46,13 @@ from .nonorm_retina_head import NoNormRetinaHead
 from .balancedgt_nonorm_retina_head import BalancedGtNoNormRetinaHead
 from .scoreioureweight_balancedgt_nonorm_retina_head import (
     ScoreIouReweightBalancedGtNoNormRetinaHead)
-from .scoreioureweight_nonorm_retina_head import ScoreIouReweightNoNormRetinaHead
+from .scoreioureweight_retina_head import ScoreIouReweightRetinaHead
 from .atss_nonorm_retina_head import ATSSNoNormRetinaHead
 from .regiou_retina_head import RegIouRetinaHead
 from .reg_soft_retina_head import RegSoftRetinaHead
 from .atss_retina_head import ATSSRetinaHead
+from .balancedgt_retina_head import BalancedGtRetinaHead
+from .scoreioureweight_balancedgt_retina_head import ScoreIouReweightBalancedGtRetinaHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -66,6 +68,7 @@ __all__ = [
     'InsideSoftRetinaHeadbk', 'CompensateInsideSoftRetinaHead', 'GtnormCompensateInsideSoftRetinaHead',
     'HamnormCompensateInsideSoftRetinaHead', 'CompensateInsideIouAwareRetinaHead',
     'NoNormRetinaHead', 'BalancedGtNoNormRetinaHead', 'ScoreIouReweightBalancedGtNoNormRetinaHead',
-    'ScoreIouReweightNoNormRetinaHead', 'ATSSNoNormRetinaHead', 'RegIouRetinaHead',
-    'RegSoftRetinaHead', 'ATSSRetinaHead'
+    'ScoreIouReweightRetinaHead', 'ATSSNoNormRetinaHead', 'RegIouRetinaHead',
+    'RegSoftRetinaHead', 'ATSSRetinaHead', 'BalancedGtRetinaHead',
+    'ScoreIouReweightBalancedGtRetinaHead'
 ]

@@ -153,13 +153,12 @@ model = dict(
             share=True)
     ],
     bbox_head=dict(
-        type='ScoreIouReweightRetinaHead',
+        type='ScoreIouReweightBalancedGtRetinaHead',
         num_classes=1,
         in_channels=256,
         stacked_convs=4,
         feat_channels=256,
         norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-        batch=12,
         anchor_generator=dict(
             type='AnchorGenerator',
             octave_base_scale=2.5198420997897464,
@@ -219,4 +218,5 @@ log_level = 'INFO'
 load_from = '/DATA/home/yanjiazhu/media-smart/github/mmdetection/work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2/epoch_211.pth'
 resume_from = None
 workflow = [('train', 1)]
+work_dir = './work_dirs/retina_full_photo_biupsample_ssh_sgdr_gn_diou2_balancedgt_scoreioureweight'
 gpu_ids = range(0, 1)
