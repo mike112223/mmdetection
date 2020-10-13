@@ -8,11 +8,11 @@ from ..utils import CoordLayer
 from .anchor_head import AnchorHead
 from mmdet.core import (anchor_inside_flags, images_to_levels,
                         multi_apply, unmap, bbox_overlaps,
-                        force_fp32)
+                        force_fp32, build_assigner)
 
 
 @HEADS.register_module()
-class NoisyAnchorHead(AnchorHead):
+class TestNoisyAnchorHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -58,7 +58,7 @@ class NoisyAnchorHead(AnchorHead):
         self.use_anchor = use_anchor
         self.reweight = reweight
 
-        super(NoisyAnchorHead, self).__init__(
+        super(TestNoisyAnchorHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -199,7 +199,7 @@ class NoisyAnchorHead(AnchorHead):
         bboxes = anchors if self.use_anchor else proposals
 
         assign_result = self.assigner.assign(
-            bboxes, gt_bboxes, gt_bboxes_ignore,
+            bboxes, proposals, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
         sampling_result = self.sampler.sample(assign_result, anchors,
                                               gt_bboxes)

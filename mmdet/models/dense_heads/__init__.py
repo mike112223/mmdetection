@@ -53,6 +53,7 @@ from .reg_soft_retina_head import RegSoftRetinaHead
 from .atss_retina_head import ATSSRetinaHead
 from .balancedgt_retina_head import BalancedGtRetinaHead
 from .scoreioureweight_balancedgt_retina_head import ScoreIouReweightBalancedGtRetinaHead
+from .test_noisy_anchor_head import TestNoisyAnchorHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -70,5 +71,5 @@ __all__ = [
     'NoNormRetinaHead', 'BalancedGtNoNormRetinaHead', 'ScoreIouReweightBalancedGtNoNormRetinaHead',
     'ScoreIouReweightRetinaHead', 'ATSSNoNormRetinaHead', 'RegIouRetinaHead',
     'RegSoftRetinaHead', 'ATSSRetinaHead', 'BalancedGtRetinaHead',
-    'ScoreIouReweightBalancedGtRetinaHead'
+    'ScoreIouReweightBalancedGtRetinaHead', 'TestNoisyAnchorHead'
 ]
