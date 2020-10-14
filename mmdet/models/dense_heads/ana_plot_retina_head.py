@@ -64,6 +64,8 @@ class AnaPlotRetinaHead(AnchorHead):
                         'pos_anchor_gt_assign': [], 'neg_anchor_gt_assign': [],
                         'gt_areas': [], 'gt_ws': [], 'gt_hs': []}
         self.gt_count = 0
+        self.img_count = 0
+        self.recall_count = 0
 
     def _init_layers(self):
         """Initialize layers of the head."""
@@ -115,6 +117,46 @@ class AnaPlotRetinaHead(AnchorHead):
         normal_init(self.retina_cls, std=0.01, bias=bias_cls)
         normal_init(self.retina_reg, std=0.01)
 
+    def forward_train(self,
+                      x,
+                      img,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels=None,
+                      gt_bboxes_ignore=None,
+                      proposal_cfg=None,
+                      **kwargs):
+        """
+        Args:
+            x (list[Tensor]): Features from FPN.
+            img_metas (list[dict]): Meta information of each image, e.g.,
+                image size, scaling factor, etc.
+            gt_bboxes (Tensor): Ground truth bboxes of the image,
+                shape (num_gts, 4).
+            gt_labels (Tensor): Ground truth labels of each box,
+                shape (num_gts,).
+            gt_bboxes_ignore (Tensor): Ground truth bboxes to be
+                ignored, shape (num_ignored_gts, 4).
+            proposal_cfg (mmcv.Config): Test / postprocessing configuration,
+                if None, test_cfg would be used
+
+        Returns:
+            tuple:
+                losses: (dict[str, Tensor]): A dictionary of loss components.
+                proposal_list (list[Tensor]): Proposals of each image.
+        """
+        outs = self(x)
+        if gt_labels is None:
+            loss_inputs = outs + (img, gt_bboxes, img_metas)
+        else:
+            loss_inputs = outs + (img, gt_bboxes, gt_labels, img_metas)
+        losses = self.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        if proposal_cfg is None:
+            return losses
+        else:
+            proposal_list = self.get_bboxes(*outs, img_metas, cfg=proposal_cfg)
+            return losses, proposal_list
+
     def forward_single(self, x):
         """Forward feature of a single scale level.
 
@@ -142,7 +184,7 @@ class AnaPlotRetinaHead(AnchorHead):
         return cls_score, bbox_pred
 
     def loss_single(self, cls_score, bbox_pred, anchors, labels, label_weights,
-                    bbox_targets, bbox_weights, gt_bboxes, num_total_samples):
+                    bbox_targets, bbox_weights, imgs, gt_bboxes, num_total_samples):
         """Compute loss of a single scale level.
 
         Args:
@@ -172,6 +214,7 @@ class AnaPlotRetinaHead(AnchorHead):
         # pdb.set_trace()
 
         _gt_count = 0
+
         for i in range(len(gt_bboxes)):
 
             _cls_score = cls_score[i].permute(1, 2, 0).reshape(-1).sigmoid()
@@ -206,6 +249,7 @@ class AnaPlotRetinaHead(AnchorHead):
                 device = _gt_bbox.device
                 _gt_bbox = _gt_bbox.cpu()
                 _bbox_pred = _bbox_pred.cpu()
+                _cls_score = _cls_score.cpu()
 
             ious = bbox_overlaps(
                 _bbox_pred.detach(),
@@ -244,8 +288,41 @@ class AnaPlotRetinaHead(AnchorHead):
 
             _gt_count += len(_gt_bbox)
 
-        # import pdb
-        # pdb.set_trace()
+            # import pdb
+            # pdb.set_trace()
+
+            import cv2
+            import numpy as np
+
+            plot_inds = ((max_ious[_neg_inds] == 0) & (_cls_score[_neg_inds] >= 0.5)).nonzero().squeeze(-1)
+
+            if len(plot_inds) > 0:
+                mean = (123.675, 116.280, 103.530)
+                std = (1, 1, 1)
+                mean = np.reshape(np.array(mean, dtype=np.float32), [1, 1, 3])
+                std = np.reshape(np.array(std, dtype=np.float32), [1, 1, 3])
+                denominator = np.reciprocal(std, dtype=np.float32)
+                img = (imgs[i].cpu().numpy().transpose(1, 2, 0)/ denominator + mean).astype(np.uint8)[:, :, (2, 1, 0)]
+                img = cv2.UMat.get(cv2.UMat(img))
+
+                # import pdb
+                # pdb.set_trace()
+
+                bbox = _bbox_pred.int()[_neg_inds][plot_inds].detach().cpu().numpy()
+                gt = _gt_bbox.int().cpu().numpy()
+                for j in range(len(bbox)):
+                    x1, y1, x2, y2 = bbox[j]
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+
+                for j in range(len(gt)):
+                    x1, y1, x2, y2 = gt[j]
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 1)
+
+                cv2.imwrite('%d.jpg' % self.img_count, img)
+
+                self.img_count += 1
+                print('save')
+                self.recall_count += len(plot_inds)
 
         anchors = anchors.reshape(-1, 4)
         labels = labels.reshape(-1)
@@ -290,6 +367,7 @@ class AnaPlotRetinaHead(AnchorHead):
     def loss(self,
              cls_scores,
              bbox_preds,
+             imgs,
              gt_bboxes,
              gt_labels,
              img_metas,
@@ -353,6 +431,7 @@ class AnaPlotRetinaHead(AnchorHead):
             label_weights_list,
             bbox_targets_list,
             bbox_weights_list,
+            imgs=imgs,
             gt_bboxes=gt_bboxes,
             num_total_samples=num_total_samples)
 
@@ -372,6 +451,8 @@ class AnaPlotRetinaHead(AnchorHead):
 
         # import pdb
         # pdb.set_trace()
+
+        print(len(self.results['pos_ious']), self.recall_count)
 
         # print(num_total_samples)
         return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)

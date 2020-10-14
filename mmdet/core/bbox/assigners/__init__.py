@@ -12,10 +12,13 @@ from .adaptive_prop_center_region_assigner import AdaptivePropCenterRegionAssign
 from .topn_iou_assigner import TopNIouAssigner
 from .topn_max_iou_assigner import TopNMaxIoUAssigner
 from .dy_topn_iou_assigner import DyTopNIouAssigner
+from .topn_max_iou_assigner_debug import TopNMaxIoUAssignerDebug
+from .hsli_ignore_max_iou_assigner import HSLIIgnoreMaxIoUAssigner
 
 __all__ = [
     'BaseAssigner', 'MaxIoUAssigner', 'ApproxMaxIoUAssigner', 'AssignResult',
     'PointAssigner', 'ATSSAssigner', 'CenterRegionAssigner', 'UniqueMaxIoUAssigner',
     'HAMAssigner', 'PropCenterRegionAssigner', 'AdaptivePropCenterRegionAssigner',
-    'TopNIouAssigner', 'DyTopNIouAssigner', 'TopNMaxIoUAssigner'
+    'TopNIouAssigner', 'DyTopNIouAssigner', 'TopNMaxIoUAssigner',
+    'TopNMaxIoUAssignerDebug', 'HSLIIgnoreMaxIoUAssigner'
 ]

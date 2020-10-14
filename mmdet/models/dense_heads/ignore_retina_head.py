@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
@@ -6,13 +5,12 @@ from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init
 from ..builder import HEADS
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
-from mmdet.core import (anchor_inside_flags, images_to_levels,
-                        multi_apply, unmap, bbox_overlaps,
-                        force_fp32, build_assigner)
+from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
+                        multi_apply, unmap)
 
 
 @HEADS.register_module()
-class TestNoisyAnchorHead(AnchorHead):
+class IgnoreRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -37,10 +35,6 @@ class TestNoisyAnchorHead(AnchorHead):
                  stacked_convs=4,
                  conv_cfg=None,
                  norm_cfg=None,
-                 alpha=0.75,
-                 gamma=0.5,
-                 use_anchor=True,
-                 reweight=True,
                  anchor_generator=dict(
                      type='AnchorGenerator',
                      octave_base_scale=4,
@@ -53,12 +47,8 @@ class TestNoisyAnchorHead(AnchorHead):
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.coord_cfg = coord_cfg
-        self.alpha = alpha
-        self.gamma = gamma
-        self.use_anchor = use_anchor
-        self.reweight = reweight
 
-        super(TestNoisyAnchorHead, self).__init__(
+        super(IgnoreRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -193,12 +183,12 @@ class TestNoisyAnchorHead(AnchorHead):
             return (None, ) * 7
         # assign gt and sample anchors
         anchors = flat_anchors[inside_flags, :]
-        scores = flat_cls_scores[inside_flags, :]
+        scores = flat_cls_scores[inside_flags, :].sigmoid()
         bbox_preds = flat_bbox_preds[inside_flags, :]
         proposals = self.bbox_coder.decode(anchors, bbox_preds)
 
         assign_result = self.assigner.assign(
-            anchors, proposals, gt_bboxes, gt_bboxes_ignore,
+            anchors, proposals, scores, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
         sampling_result = self.sampler.sample(assign_result, anchors,
                                               gt_bboxes)
@@ -213,29 +203,15 @@ class TestNoisyAnchorHead(AnchorHead):
 
         pos_inds = sampling_result.pos_inds
         neg_inds = sampling_result.neg_inds
-
-        # print(len(pos_inds), len(gt_bboxes))
-
-        if self.reweight:
-            pos_scores = scores[pos_inds, 0].sigmoid()
-            pos_ious = bbox_overlaps(proposals[pos_inds], sampling_result.pos_gt_bboxes,
-                                     is_aligned=True)
-
-            pos_scores = torch.reciprocal(1.0 - pos_scores)
-            pos_ious = torch.reciprocal(1.0 - pos_ious)
-            pos_weights = (self.alpha * pos_ious +
-                           (1 - self.alpha) * pos_scores).pow(self.gamma)
-        else:
-            pos_weights = anchors.new_full((len(pos_inds), ), 1.)
-
         if len(pos_inds) > 0:
             if not self.reg_decoded_bbox:
                 pos_bbox_targets = self.bbox_coder.encode(
                     sampling_result.pos_bboxes, sampling_result.pos_gt_bboxes)
+                # print(pos_bbox_targets)
             else:
                 pos_bbox_targets = sampling_result.pos_gt_bboxes
             bbox_targets[pos_inds, :] = pos_bbox_targets
-            bbox_weights[pos_inds, :] = pos_weights[:, None].repeat(1, 4)
+            bbox_weights[pos_inds, :] = 1.0
             if gt_labels is None:
                 # only rpn gives gt_labels as None, this time FG is 1
                 labels[pos_inds] = 1
@@ -243,15 +219,9 @@ class TestNoisyAnchorHead(AnchorHead):
                 labels[pos_inds] = gt_labels[
                     sampling_result.pos_assigned_gt_inds]
             if self.train_cfg.pos_weight <= 0:
-                label_weights[pos_inds] = pos_weights
+                label_weights[pos_inds] = 1.0
             else:
                 label_weights[pos_inds] = self.train_cfg.pos_weight
-            if 'gt_label_weights' in img_meta:
-                gt_label_weights = torch.as_tensor(
-                    img_meta['gt_label_weights'], dtype=label_weights.dtype,
-                    device=label_weights.device)
-                label_weights[pos_inds] = gt_label_weights[
-                    sampling_result.pos_assigned_gt_inds]
         if len(neg_inds) > 0:
             label_weights[neg_inds] = 1.0
 
