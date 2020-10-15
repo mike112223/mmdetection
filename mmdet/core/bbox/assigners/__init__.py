@@ -16,6 +16,7 @@ from .topn_max_iou_assigner_debug import TopNMaxIoUAssignerDebug
 from .hsli_ignore_max_iou_assigner import HSLIIgnoreMaxIoUAssigner
 from .prop_iou_assigner import PropIouAssigner
 from .pprop_iou_assigner import PPropIouAssigner
+from .double_max_iou_assigner import DoubleMaxIoUAssigner
 
 __all__ = [
     'BaseAssigner', 'MaxIoUAssigner', 'ApproxMaxIoUAssigner', 'AssignResult',
@@ -23,5 +24,5 @@ __all__ = [
     'HAMAssigner', 'PropCenterRegionAssigner', 'AdaptivePropCenterRegionAssigner',
     'TopNIouAssigner', 'DyTopNIouAssigner', 'TopNMaxIoUAssigner',
     'TopNMaxIoUAssignerDebug', 'HSLIIgnoreMaxIoUAssigner', 'PropIouAssigner',
-    'PPropIouAssigner'
+    'PPropIouAssigner', 'DoubleMaxIoUAssigner'
 ]

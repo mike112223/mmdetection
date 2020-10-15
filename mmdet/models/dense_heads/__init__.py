@@ -60,6 +60,7 @@ from .ignore_retina_head import IgnoreRetinaHead
 from .noisy_soft_anchor_head import NoisySoftAnchorHead
 from .iou_aware_recall_retina_head import IouAwareRecallRetinaHead
 from .iou_aware_recall_ignore_retina_head import IouAwareRecallIgnoreRetinaHead
+from .mutual_guide_retina_head import MutualGuideRetinaHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -79,5 +80,5 @@ __all__ = [
     'RegSoftRetinaHead', 'ATSSRetinaHead', 'BalancedGtRetinaHead',
     'ScoreIouReweightBalancedGtRetinaHead', 'TestNoisyAnchorHead', 'AnaPlotRetinaHead',
     'ImgNormRetinaHead', 'IgnoreRetinaHead', 'NoisySoftAnchorHead', 'IouAwareRecallRetinaHead',
-    'IouAwareRecallIgnoreRetinaHead'
+    'IouAwareRecallIgnoreRetinaHead', 'MutualGuideRetinaHead'
 ]
