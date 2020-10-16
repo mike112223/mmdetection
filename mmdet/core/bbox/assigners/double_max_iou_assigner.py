@@ -173,6 +173,10 @@ class DoubleMaxIoUAssigner(BaseAssigner):
                 num_gts,
                 assigned_gt_inds,
                 max_overlaps,
+                labels=assigned_labels), AssignResult(
+                num_gts,
+                assigned_gt_inds,
+                max_overlaps,
                 labels=assigned_labels)
 
         # for each anchor, which gt best overlaps with it
