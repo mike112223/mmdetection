@@ -47,6 +47,7 @@ class CascadeAnchorHead(nn.Module):
                      loss_weight=1.0),
                  loss_bbox=dict(
                      type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0),
+                 detach=True,
                  train_cfg=None,
                  test_cfg=None):
         super(CascadeAnchorHead, self).__init__()
@@ -77,6 +78,7 @@ class CascadeAnchorHead(nn.Module):
         self.bbox_coder = build_bbox_coder(bbox_coder)
         self.loss_cls = build_loss(loss_cls)
         self.loss_bbox = build_loss(loss_bbox)
+        self.detach = detach
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         if self.train_cfg:
@@ -390,9 +392,12 @@ class CascadeAnchorHead(nn.Module):
             avg_factor=num_total_samples)
 
         if self.reg_decoded_bbox:
-            proposals = bbox_pred.detach()
+            proposals = bbox_pred
         else:
-            proposals = self.bbox_coder.decode(anchors, bbox_pred).detach()
+            proposals = self.bbox_coder.decode(anchors, bbox_pred)
+
+        if self.detach:
+            proposals = proposals.detach()
 
         return loss_cls, loss_bbox, proposals
 
