@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 
-results = json.load(open('result.json', 'r'))
+results = json.load(open('result_301.json', 'r'))
 
 neg_ious = np.asarray(results['neg_ious'])
 pos_ious = np.asarray(results['pos_ious'])
@@ -206,8 +206,9 @@ plt.show()
 pos_gt_assign = np.bincount(pos_anchor_gt_assign)
 plt.figure()
 plt.hist(pos_gt_assign, bins=bins, alpha=0.7)
-plt.title('neg score distribution (iou > 0.8)')
-plt.xlabel('')
+plt.title('num of pos samples pre gt')
+plt.xlabel('num of pos')
+plt.ylabel('num of gt')
 plt.show()
 
 plt.figure()
@@ -221,7 +222,7 @@ not_anchor_recall_gt_hs = gt_hs[mask]
 not_anchor_recall_gt_ws = gt_ws[mask]
 
 
-recall_gt_assign = np.bincount(neg_anchor_gt_assign[neg_in_gt & (neg_ious > 0.7)])
+recall_gt_assign = np.bincount(neg_anchor_gt_assign[neg_in_gt & (neg_ious > 0.8)])
 plt.figure()
 plt.hist(recall_gt_assign, bins=bins, alpha=0.7)
 plt.title('neg score distribution (iou > 0.8)')
