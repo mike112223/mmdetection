@@ -41,12 +41,12 @@ def cdf_and_pdf(data,
         if a < range[0] or a > range[1]:
             continue
         plt.text(a + x_shift, b + y_shift, '%.3f' % b,
-                 ha='center', va='bottom', fontsize=10 * label_scale, rotation=rotation)
+                 ha='center', va='bottom', fontsize=5 * label_scale, rotation=rotation)
     for i, (a, b) in enumerate(zip(bin_edges[1:], cdf)):
         if a < range[0] or a > range[1]:
             continue
         plt.text(a + x_shift, b + y_shift, '%.3f' % b,# color='#ED7D31',
-                 ha='center', va='bottom', fontsize=10 * label_scale, rotation=rotation)
+                 ha='center', va='bottom', fontsize=5 * label_scale, rotation=rotation)
 
     if percentile:
         if not percentile in ['min', 'max', 'both']:
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     legends = []
     for i, p in enumerate(files):
         data = pickle.load(open(os.path.join(_dir, p), 'rb'))
-        cdf_and_pdf(data, range=(0, int(sys.argv[4])), bins=20)
+        cdf_and_pdf(data, range=(0, int(sys.argv[4])), bins=int(sys.argv[4]))
 
         legends.append(p.split('_')[-1][:-4])
 

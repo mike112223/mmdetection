@@ -14,18 +14,18 @@ def get_area_index(areaRng_info):
         return np.concatenate(np.where(areaRng_info == i), 0)
 
     area_flag = {
-        '8small': index(1),
-        '10small': index(2),
-        '12small': index(3),
-        '14small': index(4),
-        '16small': index(5),
-        '24small': index(6),
-        '32small': index(7),
-        'medium': index(8),
-        'large': index(9)
-        # 'small': index(1),
-        # 'medium': index(2),
-        # 'large': index(3)
+        # '8small': index(1),
+        # '10small': index(2),
+        # '12small': index(3),
+        # '14small': index(4),
+        # '16small': index(5),
+        # '24small': index(6),
+        # '32small': index(7),
+        # 'medium': index(8),
+        # 'large': index(9)
+        'small': index(1),
+        'medium': index(2),
+        'large': index(3)
     }
     return area_flag
 
@@ -91,13 +91,25 @@ def max_iou_analysis_area_based():
 
 def max_iou_analysis_spatial_based():
 
-    data = CocoDataset(ann_file='data/widerface_train.json', min_size=9)
+    data = CocoDataset(ann_file='data/widerface_train.json')#, min_size=9)
     resize = BboxResize(ratio=1)
+    # anchor_generator = AnchorGenerator(
+    #     strides=[4, 8, 16, 32, 64, 128],
+    #     octave_base_scale=2 ** (4 / 3),
+    #     scales_per_octave=3,
+    #     ratios=[1.3])
+
+    # anchor_generator = AnchorGenerator(
+    #     octave_base_scale=4,
+    #     scales_per_octave=3,
+    #     ratios=[0.5, 1.0, 2.0],
+    #     strides=[8, 16, 32, 64, 128])
+
     anchor_generator = AnchorGenerator(
-        strides=[4, 8, 16, 32, 64, 128],
-        octave_base_scale=2 ** (4 / 3),
+        octave_base_scale=4,
         scales_per_octave=3,
-        ratios=[1.3])
+        ratios=[1.0],
+        strides=[4, 8, 16, 32, 64])
 
     areaRng_info = [img['ann_info']['areaRng_index'] for img in data]
     areaRng_info = np.concatenate(areaRng_info, axis=0)
@@ -120,7 +132,9 @@ def max_iou_analysis_spatial_based():
         gts = torch.from_numpy(result['bboxes']).cuda()
 
         image_size = result['img_new_shape']
-        strides = [4, 8, 16, 32, 64, 128]
+        # strides = [4, 8, 16, 32, 64, 128]
+        # strides = [8, 16, 32, 64, 128]
+        strides = [4, 8, 16, 32, 64]
         featmap_sizes = [(image_size/stride).astype('int') for stride in strides]
 
         multi_level_anchors = anchor_generator.grid_anchors(
@@ -144,35 +158,35 @@ def max_iou_analysis_spatial_based():
     print(f'unique_ratio: {unique_ratio}')
 
     max_iou_array = max_iou_tensor.cpu().detach().numpy()
-    max_iou_array_8small = max_iou_array[area_index['8small']]
-    max_iou_array_10small = max_iou_array[area_index['10small']]
-    max_iou_array_12small = max_iou_array[area_index['12small']]
-    max_iou_array_14small = max_iou_array[area_index['14small']]
-    max_iou_array_16small = max_iou_array[area_index['16small']]
-    max_iou_array_24small = max_iou_array[area_index['24small']]
-    max_iou_array_32small = max_iou_array[area_index['32small']]
-    # max_iou_array_small = max_iou_array[area_index['small']]
+    # max_iou_array_8small = max_iou_array[area_index['8small']]
+    # max_iou_array_10small = max_iou_array[area_index['10small']]
+    # max_iou_array_12small = max_iou_array[area_index['12small']]
+    # max_iou_array_14small = max_iou_array[area_index['14small']]
+    # max_iou_array_16small = max_iou_array[area_index['16small']]
+    # max_iou_array_24small = max_iou_array[area_index['24small']]
+    # max_iou_array_32small = max_iou_array[area_index['32small']]
+    max_iou_array_small = max_iou_array[area_index['small']]
     max_iou_array_medium = max_iou_array[area_index['medium']]
     max_iou_array_large = max_iou_array[area_index['large']]
 
     with open('max_iou_train_spatial_based.pkl', 'wb') as f:
         pickle.dump(max_iou_array, f)
-    with open('max_iou_train_spatial_based_8small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_8small, f)
-    with open('max_iou_train_spatial_based_10small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_10small, f)
-    with open('max_iou_train_spatial_based_12small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_12small, f)
-    with open('max_iou_train_spatial_based_14small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_14small, f)
-    with open('max_iou_train_spatial_based_16small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_16small, f)
-    with open('max_iou_train_spatial_based_24small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_24small, f)
-    with open('max_iou_train_spatial_based_32small.pkl', 'wb') as f:
-        pickle.dump(max_iou_array_32small, f)
-    # with open('max_iou_train_spatial_based_small.pkl', 'wb') as f:
-        # pickle.dump(max_iou_array_small, f)
+    # with open('max_iou_train_spatial_based_8small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_8small, f)
+    # with open('max_iou_train_spatial_based_10small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_10small, f)
+    # with open('max_iou_train_spatial_based_12small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_12small, f)
+    # with open('max_iou_train_spatial_based_14small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_14small, f)
+    # with open('max_iou_train_spatial_based_16small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_16small, f)
+    # with open('max_iou_train_spatial_based_24small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_24small, f)
+    # with open('max_iou_train_spatial_based_32small.pkl', 'wb') as f:
+    #     pickle.dump(max_iou_array_32small, f)
+    with open('max_iou_train_spatial_based_small.pkl', 'wb') as f:
+        pickle.dump(max_iou_array_small, f)
     with open('max_iou_train_spatial_based_medium.pkl', 'wb') as f:
         pickle.dump(max_iou_array_medium, f)
     with open('max_iou_train_spatial_based_large.pkl', 'wb') as f:

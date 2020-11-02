@@ -119,13 +119,13 @@ class CocoDataset(object):
         return valid_inds
 
     def get_area_index(self, areas):
-        # self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
-        self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 8 ** 2], [8 ** 2, 10 ** 2],
-                        [10 ** 2, 12 ** 2], [12 ** 2, 14 ** 2], [14 ** 2, 16 ** 2],
-                        [16 ** 2, 24 ** 2], [24 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
-        self.areaRngLbl = ['all', '8small', '10small', '12small', '14small', '16small',
-                           '24small', '32small', 'small' 'medium', 'large']
-        # self.areaRngLbl = ['small' 'medium', 'large']
+        self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
+        # self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 8 ** 2], [8 ** 2, 10 ** 2],
+        #                 [10 ** 2, 12 ** 2], [12 ** 2, 14 ** 2], [14 ** 2, 16 ** 2],
+        #                 [16 ** 2, 24 ** 2], [24 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
+        # self.areaRngLbl = ['all', '8small', '10small', '12small', '14small', '16small',
+        #                    '24small', '32small', 'small' 'medium', 'large']
+        self.areaRngLbl = ['small' 'medium', 'large']
         index = [[self.areaRng.index(areaRng) for areaRng in self.areaRng[1:] if areaRng[0] < area <= areaRng[1]][0]
                  for area in areas]
         return np.array(index)
