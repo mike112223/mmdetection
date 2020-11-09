@@ -20,7 +20,7 @@ def reduce_mean(tensor):
 
 
 @HEADS.register_module()
-class IouAwareRetinaHead(AnchorHead):
+class IouAwareReduceRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
