@@ -65,7 +65,7 @@ class IouAwareReduceRetinaHead(AnchorHead):
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
 
-        super(IouAwareRetinaHead, self).__init__(
+        super(IouAwareReduceRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -187,6 +187,7 @@ class IouAwareReduceRetinaHead(AnchorHead):
             dict[str, Tensor]: A dictionary of loss components.
         """
         # classification loss
+        # print(num_total_samples, cls_score[0].device)
         anchors = anchors.reshape(-1, 4)
         labels = labels.reshape(-1)
         label_weights = label_weights.reshape(-1)
@@ -305,8 +306,11 @@ class IouAwareReduceRetinaHead(AnchorHead):
          num_total_pos, num_total_neg) = cls_reg_targets
 
         num_total_samples = reduce_mean(
-            torch.tensor(num_total_pos).cuda()).item()
+            torch.tensor(1. * num_total_pos).cuda()).item()
         num_total_samples = max(num_total_samples, 1.0)
+
+        # num_total_samples = (
+        #     num_total_pos + num_total_neg if self.sampling else num_total_pos)
 
         # anchor number of multi levels
         num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]

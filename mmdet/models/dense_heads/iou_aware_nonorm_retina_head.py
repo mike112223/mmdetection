@@ -6,12 +6,12 @@ from mmcv.cnn import ConvModule, bias_init_with_prob, normal_init, constant_init
 from ..builder import HEADS, build_loss
 from ..utils import CoordLayer
 from .anchor_head import AnchorHead
-from mmdet.core import (anchor_inside_flags, force_fp32, images_to_levels,
-                        multi_apply, unmap, bbox_overlaps, multiclass_nms)
+from mmdet.core import (force_fp32, images_to_levels, anchor_inside_flags,
+                        multi_apply, bbox_overlaps, multiclass_nms, unmap)
 
 
 @HEADS.register_module()
-class IouAwareRetinaHead(AnchorHead):
+class IouAwareNoNormRetinaHead(AnchorHead):
     r"""An anchor-based head used in `RetinaNet
     <https://arxiv.org/pdf/1708.02002.pdf>`_.
 
@@ -49,14 +49,20 @@ class IouAwareRetinaHead(AnchorHead):
                  detach=True,
                  coord_cfg=None,
                  custom_init=None,
+                 norm=None,
+                 upperbound=200,
+                 gpu_assign_thr=100,
                  **kwargs):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.coord_cfg = coord_cfg
         self.custom_init = custom_init
+        self.norm = norm
+        self.upperbound = upperbound
+        self.gpu_assign_thr = gpu_assign_thr
 
-        super(IouAwareRetinaHead, self).__init__(
+        super(IouAwareNoNormRetinaHead, self).__init__(
             num_classes,
             in_channels,
             anchor_generator=anchor_generator,
@@ -201,6 +207,20 @@ class IouAwareRetinaHead(AnchorHead):
         assign_result = self.assigner.assign(
             anchors, gt_bboxes, gt_bboxes_ignore,
             None if self.sampling else gt_labels)
+
+        if assign_result.num_gts > self.upperbound:
+            keepout = torch.randperm(assign_result.num_gts)[self.upperbound:]
+            if len(keepout) > self.gpu_assign_thr:
+                idx = (assign_result.gt_inds.unsqueeze(1).cpu() == (keepout + 1)).nonzero()
+                idx = idx.to(gt_bboxes.device)
+            else:
+                idx = (assign_result.gt_inds.unsqueeze(1) == (keepout + 1).to(gt_bboxes.device)).nonzero()
+
+            assign_result.gt_inds[idx[:, 0]] = 0
+            assign_result.labels[idx[:, 0]] = -1
+
+        # print('gt: ', assign_result.num_gts)
+
         sampling_result = self.sampler.sample(assign_result, anchors,
                                               gt_bboxes)
 
@@ -251,6 +271,7 @@ class IouAwareRetinaHead(AnchorHead):
 
         return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
                 neg_inds, sampling_result)
+
 
     def loss_single(self, cls_score, bbox_pred, iou_pred, anchors, labels,
                     label_weights, bbox_targets, bbox_weights, num_total_samples):
@@ -395,8 +416,12 @@ class IouAwareRetinaHead(AnchorHead):
             return None
         (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
          num_total_pos, num_total_neg) = cls_reg_targets
-        num_total_samples = (
-            num_total_pos + num_total_neg if self.sampling else num_total_pos)
+        # print(num_total_pos)
+        if self.norm is None:
+            num_total_samples = (
+                num_total_pos + num_total_neg if self.sampling else num_total_pos)
+        else:
+            num_total_samples = self.norm
 
         # anchor number of multi levels
         num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]
