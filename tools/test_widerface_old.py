@@ -1,6 +1,5 @@
 import argparse
 import os
-from os import path as osp
 
 import mmcv
 import torch
@@ -28,9 +27,6 @@ def parse_args():
         action='store_true',
         help='Whether to fuse conv and bn, this will slightly increase'
         'the inference speed')
-    parser.add_argument(
-        '--tta-model',
-        action='store_true')
     parser.add_argument(
         '--format-only',
         action='store_true',
@@ -79,17 +75,16 @@ def single_gpu_test(model,
                     out_dir=None,
                     show_score_thr=0.3):
     model.eval()
-    results = []
     dataset = data_loader.dataset
     prog_bar = mmcv.ProgressBar(len(dataset))
     for i, data in enumerate(data_loader):
-        # import pdb; pdb.set_trace()
+
         filename = data['img_metas'][0].data[0][0]['filename'].split('/')[-2:]
         filename = os.path.join(*filename)
 
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
-        # import pdb; pdb.set_trace()
+
         if show and out_dir:
             img_tensor = data['img'][0]
             img_metas = data['img_metas'][0].data[0]
@@ -120,12 +115,13 @@ def single_gpu_test(model,
             bbox_results, mask_results = result
             encoded_mask_results = encode_mask_results(mask_results)
             result = bbox_results, encoded_mask_results
-        results.append(result)
-        write_txt(out_dir, filename, result)
+
+        if out_dir:
+            write_txt(out_dir, filename, result)
+
         batch_size = len(data['img_metas'][0].data)
         for _ in range(batch_size):
             prog_bar.update()
-    return results
 
 
 def write_txt(save_folder, img_name, dets):
@@ -146,7 +142,7 @@ def write_txt(save_folder, img_name, dets):
             w = int(box[2]) - int(box[0])
             h = int(box[3]) - int(box[1])
             confidence = str(box[4])
-            line = f'{x} {y} {w} {h} {confidence}\n'
+            line = str(x) + " " + str(y) + " " + str(w) + " " + str(h) + " " + confidence + " \n"
             fd.write(line)
 
 
@@ -166,9 +162,6 @@ def main():
         raise ValueError('The output file must be a pkl file.')
 
     cfg = Config.fromfile(args.config)
-    # if args.tta_model:
-    #     cfg.model.type += 'TTA'
-    # print(cfg.model.type)
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
@@ -213,8 +206,8 @@ def main():
 
     if not distributed:
         model = MMDataParallel(model, device_ids=[0])
-        outputs = single_gpu_test(model, data_loader, args.show, args.show_dir,
-                                  args.show_score_thr)
+        single_gpu_test(model, data_loader, args.show, args.show_dir,
+                        args.show_score_thr)
     else:
         model = MMDistributedDataParallel(
             model.cuda(),
@@ -222,40 +215,6 @@ def main():
             broadcast_buffers=False)
         outputs = multi_gpu_test(model, data_loader, args.tmpdir,
                                  args.gpu_collect)
-
-    rank, _ = get_dist_info()
-    if rank == 0:
-        if args.out:
-            print(f'\nwriting results to {args.out}')
-            os.makedirs(os.path.dirname(args.out), exist_ok=True)
-            mmcv.dump(outputs, args.out)
-        kwargs = {} if args.options is None else args.options
-        if 'scale_ranges' in kwargs:
-            tmp = kwargs['scale_ranges']
-            kwargs['scale_ranges'] = [(tmp[i], tmp[i + 1])
-                                      for i in range(len(tmp) - 1)]
-            kwargs['scale_ranges'].append((tmp[0], tmp[-1]))
-
-        print(kwargs)
-
-        if args.format_only:
-            dataset.format_results(outputs, **kwargs)
-        if args.eval:
-            # dataset.evaluate(outputs, args.eval, **kwargs)
-
-            dataset.evaluate(
-                outputs,
-                'mAP',
-                iou_thr=0.5,
-                # iou_thr=[0.5, 0.45, 0.4, 0.35, 0.3],
-                scale_ranges=[(0, 8), (8, 16), (16, 24), (24, 32), (32, 96),
-                              (96, 5000), (0, 5000)])
-            dataset.evaluate(
-                outputs,
-                'mAP',
-                iou_thr=0.5,
-                # iou_thr=[0.5, 0.45, 0.4, 0.35, 0.3],
-                scale_ranges=[(8, 10), (10, 12), (12, 14), (14, 16), (8, 16)])
 
 
 if __name__ == '__main__':

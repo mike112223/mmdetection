@@ -67,6 +67,8 @@ from .cascade_retina_head import CascadeRetinaHead
 from .cascade_head_test import CascadeTestHead
 from .iou_aware_reduce_retina_head import IouAwareReduceRetinaHead
 from .iou_aware_nonorm_retina_head import IouAwareNoNormRetinaHead
+from .reduce_retina_head import ReduceRetinaHead
+from .test_reduce_retina_head import TestReduceRetinaHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -88,5 +90,5 @@ __all__ = [
     'ImgNormRetinaHead', 'IgnoreRetinaHead', 'NoisySoftAnchorHead', 'IouAwareRecallRetinaHead',
     'IouAwareRecallIgnoreRetinaHead', 'MutualGuideRetinaHead', 'CascadeHead',
     'CascadeAnchorHead', 'CascadeRetinaHead', 'CascadeTestHead', 'IouAwareReduceRetinaHead',
-    'IouAwareNoNormRetinaHead'
+    'IouAwareNoNormRetinaHead', 'ReduceRetinaHead', 'TestReduceRetinaHead'
 ]

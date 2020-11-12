@@ -132,3 +132,6 @@ nohup*
 *.swp
 
 *.json
+
+eval_dirs/
+*.mat
