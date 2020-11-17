@@ -6,13 +6,14 @@ from pprint import pprint
 
 
 raw_exps = """
-baseline_gn_diou2_ssh_sgdr_iouaware 361
-baseline_gn_diou2_ssh_sgdr 151
-baseline_gn_diou2_sgdr 151
-baseline_gn_sgdr 151
-baseline_gn_diou2_ssh_sgdr_iouaware_reducenorm 31
-baseline_gn_diou2_ssh_sgdr_iouaware_nonorm 31
-baseline_gn_diou2_ssh_sgdr_iouaware_reducenorm_dcn 31
+baseline_gn_diou2_ssh_sgdr_iouaware0.4_reducenorm 151
+baseline_gn_diou2_ssh_sgdr_iouaware0.4_reducenorm_dcn 151
+baseline_gn_diou2_ssh_sgdr_iouaware_reducenorm 301
+baseline_gn_diou2_ssh_sgdr_iouaware_reducenorm_dcn 151
+baseline_sgdr_reducenorm 91
+baseline_sgdr_reducenorm_gn 61
+baseline_sgdr_reducenorm_gn_diou2 61
+baseline_sgdr_reducenorm_gn_diou2_ssh 61
 """
 
 exps = [x.split(' ') for x in raw_exps.split('\n') if x]

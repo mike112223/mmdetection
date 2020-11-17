@@ -56,6 +56,7 @@ class IouAwareReduceRetinaHead(AnchorHead):
                      use_sigmoid=True,
                      loss_weight=1.0),
                  detach=True,
+                 alpha=None,
                  coord_cfg=None,
                  custom_init=None,
                  **kwargs):
@@ -73,6 +74,7 @@ class IouAwareReduceRetinaHead(AnchorHead):
 
         self.loss_iou = build_loss(loss_iou)
         self.detach = detach
+        self.alpha = alpha
 
         if self.coord_cfg is not None:
             self.coord = CoordLayer(**self.coord_cfg)
@@ -466,7 +468,13 @@ class IouAwareReduceRetinaHead(AnchorHead):
                 scores = cls_score.sigmoid()
             else:
                 scores = cls_score.softmax(-1)
-            scores *= iou_pred
+
+            if self.alpha is None:
+                scores *= iou_pred
+            elif isinstance(self.alpha, float):
+                scores = torch.pow(scores, self.alpha) * torch.pow(iou_pred, 1 - self.alpha)
+            else:
+                raise "Not Implemented Error!!!"
 
             bbox_pred = bbox_pred.permute(1, 2, 0).reshape(-1, 4)
             nms_pre = cfg.get('nms_pre', -1)
