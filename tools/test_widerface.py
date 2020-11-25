@@ -4,6 +4,7 @@ from os import path as osp
 
 import mmcv
 import torch
+import numpy as np
 from mmcv import Config, DictAction
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import get_dist_info, init_dist, load_checkpoint
@@ -14,7 +15,7 @@ from mmdet.core import wrap_fp16_model
 from mmdet.datasets import build_dataloader, build_dataset
 from mmdet.models import build_detector
 
-from mmdet.core import encode_mask_results, tensor2imgs
+from mmdet.core import encode_mask_results, tensor2imgs, bbox_overlaps
 
 
 def parse_args():
@@ -73,6 +74,29 @@ def parse_args():
     return args
 
 
+def iou_aware(idx, dataset, result):
+    # import pdb
+    # pdb.set_trace()
+
+    annotation = dataset.get_ann_info(idx)
+
+    dts = torch.from_numpy(result[0][:, :4])
+    scores = result[0][:, 4]
+
+    gts = torch.from_numpy(annotation['bboxes'])
+
+    if len(dts) == 0 or len(gts) == 0:
+        return result
+
+    overlaps = bbox_overlaps(dts, gts).numpy()
+
+    max_ious = overlaps.max(axis=1)
+
+    scores = np.power(scores, 0.4) * np.power(max_ious, 1 - 0.4)
+
+    return result
+
+
 def single_gpu_test(model,
                     data_loader,
                     show=False,
@@ -89,6 +113,9 @@ def single_gpu_test(model,
 
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
+
+        result = iou_aware(i, dataset, result)
+
         # import pdb; pdb.set_trace()
         if show and out_dir:
             img_tensor = data['img'][0]
@@ -120,6 +147,7 @@ def single_gpu_test(model,
             bbox_results, mask_results = result
             encoded_mask_results = encode_mask_results(mask_results)
             result = bbox_results, encoded_mask_results
+
         results.append(result)
         write_txt(out_dir, filename, result)
         batch_size = len(data['img_metas'][0].data)

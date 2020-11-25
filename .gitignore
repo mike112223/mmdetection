@@ -135,3 +135,5 @@ nohup*
 
 eval_dirs/
 *.mat
+
+eval_tools/*

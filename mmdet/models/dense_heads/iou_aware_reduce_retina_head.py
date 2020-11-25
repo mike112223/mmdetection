@@ -474,7 +474,7 @@ class IouAwareReduceRetinaHead(AnchorHead):
             elif isinstance(self.alpha, float):
                 scores = torch.pow(scores, self.alpha) * torch.pow(iou_pred, 1 - self.alpha)
             else:
-                raise "Not Implemented Error!!!"
+                raise ValueError("alpha must be float or None")
 
             bbox_pred = bbox_pred.permute(1, 2, 0).reshape(-1, 4)
             nms_pre = cfg.get('nms_pre', -1)

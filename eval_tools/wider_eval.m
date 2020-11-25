@@ -7,9 +7,10 @@ clear;
 close all;
 addpath(genpath('./plot'));
 %Please specify your prediction directory.
-pred_dir = './pred';
+pred_dir = './pred_tta';
 gt_dir = './ground_truth/wider_face_val.mat';
 %preprocessing
+
 pred_list = read_pred(pred_dir,gt_dir);
 norm_pred_list = norm_score(pred_list);
 
@@ -18,7 +19,7 @@ setting_name_list = {'easy_val';'medium_val';'hard_val'};
 setting_class = 'setting_int';
 
 %Please specify your algorithm name.
-legend_name = 'MZFace';
+legend_name = 'TinaFace';
 for i = 1:size(setting_name_list,1)
     fprintf('Current evaluation setting %s\n',setting_name_list{i});
     setting_name = setting_name_list{i};

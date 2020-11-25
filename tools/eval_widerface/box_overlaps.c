@@ -2383,7 +2383,7 @@ static PyObject *__pyx_pf_4bbox_bbox_overlaps(CYTHON_UNUSED PyObject *__pyx_self
           /* "box_overlaps.pyx":54
  *                         box_area - iw * ih
  *                     )
- *                     overlaps[n, k] = iw * ih / ua             # <<<<<<<<<<<<<<
+ *                     overlaps[n, k] = (iw * ih) / ua             # <<<<<<<<<<<<<<
  *     return overlaps
  */
           __pyx_t_22 = (__pyx_v_iw * __pyx_v_ih);
@@ -2424,7 +2424,7 @@ static PyObject *__pyx_pf_4bbox_bbox_overlaps(CYTHON_UNUSED PyObject *__pyx_self
 
   /* "box_overlaps.pyx":55
  *                     )
- *                     overlaps[n, k] = iw * ih / ua
+ *                     overlaps[n, k] = (iw * ih) / ua
  *     return overlaps             # <<<<<<<<<<<<<<
  */
   __Pyx_XDECREF(__pyx_r);

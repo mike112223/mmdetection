@@ -51,5 +51,5 @@ def bbox_overlaps(
                         (boxes[n, 3] - boxes[n, 1] + 1) +
                         box_area - iw * ih
                     )
-                    overlaps[n, k] = iw * ih / ua
+                    overlaps[n, k] = (iw * ih) / ua
     return overlaps

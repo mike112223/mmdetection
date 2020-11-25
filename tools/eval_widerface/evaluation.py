@@ -168,6 +168,9 @@ def image_eval(pred, gt, ignore, iou_thresh):
 
     overlaps = bbox_overlaps(_pred[:, :4], _gt)
 
+    # import pdb
+    # pdb.set_trace()
+
     for h in range(_pred.shape[0]):
 
         gt_overlap = overlaps[h]
@@ -211,6 +214,9 @@ def dataset_pr_info(thresh_num, pr_curve, count_face):
 
 def voc_ap(rec, prec):
 
+    # import pdb
+    # pdb.set_trace()
+
     # correct AP calculation
     # first append sentinel values at the end
     mrec = np.concatenate(([0.], rec, [1.]))
@@ -232,6 +238,10 @@ def voc_ap(rec, prec):
 def evaluation(pred, gt_path, iou_thresh=0.5):
     pred = get_preds(pred)
     norm_score(pred)
+
+    # import pdb
+    # pdb.set_trace()
+
     facebox_list, event_list, file_list, hard_gt_list, \
         medium_gt_list, easy_gt_list = get_gt_boxes(gt_path)
     event_num = len(event_list)

@@ -27,7 +27,9 @@ ylim([0,1]);
 xlabel('Recall');
 ylabel('Precision');
 
-savename = sprintf('./plot/figure/%s/wider_pr_cruve_%s_%s.pdf',dateset_class,seting_class,setting_name);
+savename = sprintf('./plot/figure/%s/wider_pr_cruve_%s_%s.png',dateset_class,seting_class,setting_name);
+saveimgname = sprintf('./plot/figure/%s/wider_pr_cruve_%s_%s.pdf',dateset_class,seting_class,setting_name);
+saveas(gcf,saveimgname);
 saveTightFigure(gcf,savename);
 clear gcf;
 hold off;

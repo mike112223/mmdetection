@@ -20,6 +20,11 @@ for i = 1:size(set_list,1)
         ap = VOCap(propose{j},recall{j});
         ap_list(j) = ap;
         ap = num2str(ap);
+
+        if strcmp(legend_name, 'TF')
+            legend_name = 'TinaFace';
+        end 
+
         if length(ap) < 5
             name_list{j} = [legend_name '-' ap];
         else

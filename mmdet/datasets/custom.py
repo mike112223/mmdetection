@@ -2,9 +2,10 @@ import os.path as osp
 
 import mmcv
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 
-from mmdet.core import eval_map, eval_recalls
+from mmdet.core import eval_map, eval_recalls, bbox_overlaps
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -395,7 +396,9 @@ class CustomDataset(Dataset):
 
             max_ious = overlaps.max(axis=1)
 
-            scores *= max_ious
+            scores = np.power(scores, 0.4) * np.power(max_ious, 1 - 0.4)
+
+            # scores *= max_ious
 
             results[i][0][:, 4] = scores
 
