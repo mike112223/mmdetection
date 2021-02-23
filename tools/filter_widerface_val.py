@@ -17,8 +17,8 @@ from scipy.io import loadmat
 def parse_args():
     parser = argparse.ArgumentParser(
         description='MMDet test (and eval) a model')
-    parser.add_argument('--gt_path', help='test config file path')
-    parser.add_argument('--ann_path', help='test config file path')
+    parser.add_argument('--gt_path', help='path of mat file of ground truth')
+    parser.add_argument('--ann_path', help='path of generated xml files')
 
     args = parser.parse_args()
     return args
@@ -86,10 +86,8 @@ def parse_xml(xml_path, keep_index, gt_boxes):
 def _parse_xmls(ann_path):
 
     xml_paths = os.listdir(ann_path)
-    # print(len(xml_paths))
 
     for xml_path in xml_paths:
-        print(xml_path)
         tree = ET.parse(os.path.join(ann_path, xml_path))
         root = tree.getroot()
         objs = root.findall('object')
@@ -99,9 +97,6 @@ def _parse_xmls(ann_path):
             obj.find('difficult').text = '1'
 
         tree.write(os.path.join(ann_path, xml_path))
-
-    # import pdb
-    # pdb.set_trace()
 
 
 def main():
